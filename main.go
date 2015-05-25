@@ -31,7 +31,6 @@ func newPool(server string) *redis.Pool {
 func main() {
 	router := httprouter.New()
 
-	router.HandlerFunc("POST", "/fetch", NewFetchHandler())
 	redisUrlKey := os.Getenv("REDIS_URL_KEY")
 	redisURL := os.Getenv(redisUrlKey)
 	if redisURL == "" {
