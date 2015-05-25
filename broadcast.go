@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/sudhirj/strobe"
 	"github.com/manucorporat/sse"
+	"github.com/sudhirj/strobe"
 )
 
 type broker struct {
-	channels map[string]*strobe.Strobe
+	channels  map[string]*strobe.Strobe
 	redisPool *redis.Pool
 	sync.RWMutex
 }
@@ -46,9 +46,9 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			select {
 			case msg := <-listener:
 				sse.Encode(w, sse.Event{
-                                        Event: "message",
-                                        Data:  msg,
-                                })
+					Event: "message",
+					Data:  msg,
+				})
 				f.Flush()
 			case <-closer.CloseNotify():
 				return
@@ -58,7 +58,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "POST":
 		conn := b.redisPool.Get()
-    		defer conn.Close()
+		defer conn.Close()
 		conn.Do("PUBLISH", channelName, "PING")
 	}
 }
@@ -69,8 +69,8 @@ func (b *broker) start() {
 	psc := redis.PubSubConn{conn}
 	psc.PSubscribe("*")
 	for {
-        	switch n := psc.Receive().(type) {
-        	case redis.PMessage:
+		switch n := psc.Receive().(type) {
+		case redis.PMessage:
 			channel, ok := b.channels[n.Channel]
 			if ok {
 				channel.Pulse(string(n.Data))
@@ -78,9 +78,9 @@ func (b *broker) start() {
 		case error:
 			fmt.Printf("error: %v\n", n)
 			return
-	        }
-		
-	}	
+		}
+
+	}
 }
 
 // NewBroadcastHandler creates a new handler that handles pub sub

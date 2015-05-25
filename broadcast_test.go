@@ -12,7 +12,7 @@ import (
 )
 
 func TestPubsub(t *testing.T) {
-        testPool := newPool("localhost:6379")
+	testPool := newPool("localhost:6379")
 	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool)))
 	url := monolithServer.URL + "/channel"
 	success := make(chan bool)
