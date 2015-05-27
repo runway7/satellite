@@ -1,0 +1,26 @@
+{
+	"ImportPath": "github.com/runway7/satellite",
+	"GoVersion": "go1.3.1",
+	"Deps": [
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "3e4727f0ef5938d3a846cdb57e560dba4419e854"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "3e4727f0ef5938d3a846cdb57e560dba4419e854"
+		},
+		{
+			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Rev": "8c199fb6259ffc1af525cc3ad52ee60ba8359669"
+		},
+		{
+			"ImportPath": "github.com/manucorporat/sse",
+			"Rev": "b7eeebd8987e6b233e43db2551d43f71b2e115d5"
+		},
+		{
+			"ImportPath": "github.com/sudhirj/strobe",
+			"Rev": "20d1876005d5182b4111c5cbef77f6f708d97df8"
+		}
+	]
+}
