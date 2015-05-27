@@ -19,8 +19,8 @@ Create a GET request to `/broadcast/channelName`
 
 ## How it works
 1. A goroutine listens for Redis pubsub messages
-1. 1. It passes it to the appropriate channel 
-1. 2. goroutines that are listening on that channel pass it to their client via SSE
+   1. It passes it to the appropriate channel 
+   2. goroutines that are listening on that channel pass it to their client via SSE
 
 2. When a client connects using a GET request, a goroutine waits for messages on a channel (which it creates if necessary)
 
