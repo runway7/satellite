@@ -90,7 +90,7 @@ func (b *broker) start() {
 }
 
 // NewBroadcastHandler creates a new handler that handles pub sub
-func NewBroadcastHandler(pool *redis.Pool, token) func(w http.ResponseWriter, req *http.Request) {
+func NewBroadcastHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
 	broker := &broker{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
 	go broker.start()
 	return broker.ServeHTTP

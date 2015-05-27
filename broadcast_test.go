@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"net/http"
+	"net/url"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -13,15 +14,16 @@ import (
 
 func TestPubsub(t *testing.T) {
 	testPool := newPool("localhost:6379")
-	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool)))
-	url := monolithServer.URL + "/channel"
+	token := "token"
+	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool,token)))
+	testUrl := monolithServer.URL + "/channel"
 	success := make(chan bool)
 	group := &sync.WaitGroup{}
 	for i := 1; i < 100; i++ {
 		group.Add(1)
 
 		go func(t *testing.T, group *sync.WaitGroup) {
-			resp, err := http.Get(url)
+			resp, err := http.Get(testUrl)
 			if err != nil {
 				t.Error("should have been able to make the connection")
 			}
@@ -51,7 +53,10 @@ func TestPubsub(t *testing.T) {
 
 	go func() {
 		time.Sleep(time.Second / 100)
-		http.Post(url, "text", nil)
+		v := url.Values{}
+		v.Set("token", "token")
+		v.Add("message", "PING")
+		http.PostForm(testUrl, v)
 	}()
 
 	select {
