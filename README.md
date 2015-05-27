@@ -2,20 +2,24 @@
 Go app to broadcast messages to all connected web clients using SSE and Redis PubSub
 
 ## Installation
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
+Or:
+
 1. Install Redis
 2. `go get github.com/runway7/satellite`
 3. ????
 
 ## Usage
-1. Save authentication token as $TOKEN (you'll use this when you broadcast a message)
-2. Redis url key as $REDIS_URL_KEY (for example, REDIS_URL)
-3. Redis url as $REDIS_URL (if your Redis url key was REDIS_URL)
+1. Save authentication token as `$TOKEN` (you'll use this when you broadcast a message)
+2. Redis url key as `$REDIS_URL_KEY` (for example, `"REDIS_URL"`)
+3. Redis url as `$REDIS_URL` (if your Redis url key was `"REDIS_URL"`)
 
 ### Create a channel / Broadcast a message
-Create a POST request to `/broadcast/channelName` with token and message as form values
+Create a `POST` request to `/broadcast/channelName` with `token` and `message` as form values
 
 ### Subscribe to a channel / Listen for messages
-Create a GET request to `/broadcast/channelName`
+Create a `GET` request to `/broadcast/channelName`
 
 ## How it works
 1. A goroutine listens for Redis pubsub messages
