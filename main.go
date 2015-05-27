@@ -30,7 +30,7 @@ func newPool(server string) *redis.Pool {
 
 func main() {
 	router := httprouter.New()
-
+	
 	redisUrlKey := os.Getenv("REDIS_URL_KEY")
 	redisURL := os.Getenv(redisUrlKey)
 	if redisURL == "" {
@@ -39,7 +39,8 @@ func main() {
 
 	pool := newPool(redisURL)
 
-	broadcaster := NewBroadcastHandler(pool)
+	token := os.Getenv("TOKEN")
+	broadcaster := NewBroadcastHandler(pool, token)
 	router.HandlerFunc("GET", "/broadcast/:channel", broadcaster)
 	router.HandlerFunc("POST", "/broadcast/:channel", broadcaster)
 

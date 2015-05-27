@@ -14,6 +14,7 @@ import (
 type broker struct {
 	channels  map[string]*strobe.Strobe
 	redisPool *redis.Pool
+	token string
 	sync.RWMutex
 }
 
@@ -57,7 +58,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case "POST":
-		if (os.Getenv("token") == r.FormValue("token")) {
+		if (r.FormValue("token") == b.token) {
 			conn := b.redisPool.Get()
 			defer conn.Close()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
@@ -89,8 +90,8 @@ func (b *broker) start() {
 }
 
 // NewBroadcastHandler creates a new handler that handles pub sub
-func NewBroadcastHandler(pool *redis.Pool) func(w http.ResponseWriter, req *http.Request) {
-	broker := &broker{channels: make(map[string]*strobe.Strobe), redisPool: pool}
+func NewBroadcastHandler(pool *redis.Pool, token) func(w http.ResponseWriter, req *http.Request) {
+	broker := &broker{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
 	go broker.start()
 	return broker.ServeHTTP
 }
