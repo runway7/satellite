@@ -1,0 +1,13 @@
+{
+  "name": "Satellite",
+  "description": "Go app to broadcast messages via SSE",
+  "repository": "https://github.com/runway7/satellite",
+  "keywords": ["golang", "SSE", "redis"],
+  "success_url": "/",
+  "addons": [
+      "heroku-redis:test"
+  ],
+  "env": {
+      "BUILDPACK_URL": "https://github.com/kr/heroku-buildpack-go"
+  }
+}
