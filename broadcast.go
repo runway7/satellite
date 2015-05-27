@@ -57,9 +57,14 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case "POST":
-		conn := b.redisPool.Get()
-		defer conn.Close()
-		conn.Do("PUBLISH", channelName, "PING")
+		if (os.Getenv("token") == r.FormValue("token")) {
+			conn := b.redisPool.Get()
+			defer conn.Close()
+			conn.Do("PUBLISH", channelName, r.FormValue("message"))
+		} else {
+			http.Error(w, "Authentication Error", http.StatusUnauthorized)
+			return
+		}	
 	}
 }
 
