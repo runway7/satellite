@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"log"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
@@ -15,6 +16,7 @@ func newPool(server string) *redis.Pool {
 		MaxIdle:     300,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
+			log.Println("Dialling redis - "+server)
 			c, err := redis.Dial("tcp", server)
 			if err != nil {
 				return nil, err
