@@ -14,8 +14,8 @@ import (
 
 func newPool(server string) *redis.Pool {
 	return &redis.Pool{
-		MaxIdle:     3,
-		MaxActive:   15,
+		MaxIdle:     2,
+		MaxActive:   8,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			log.Println("Dialling redis - " + server)
