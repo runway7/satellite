@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/garyburd/redigo/redis"
-	"github.com/julienschmidt/httprouter"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 )
 
 func newPool(server string) *redis.Pool {
@@ -30,7 +30,7 @@ func newPool(server string) *redis.Pool {
 
 func main() {
 	router := httprouter.New()
-	
+
 	redisUrlKey := os.Getenv("REDIS_URL_KEY")
 	redisURL := os.Getenv(redisUrlKey)
 	if redisURL == "" {

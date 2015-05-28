@@ -6,15 +6,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/garyburd/redigo/redis"
-	"github.com/manucorporat/sse"
-	"github.com/sudhirj/strobe"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/sudhirj/strobe"
 )
 
 type broker struct {
 	channels  map[string]*strobe.Strobe
 	redisPool *redis.Pool
-	token string
+	token     string
 	sync.RWMutex
 }
 
@@ -58,14 +58,14 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case "POST":
-		if (r.FormValue("token") == b.token) {
+		if r.FormValue("token") == b.token {
 			conn := b.redisPool.Get()
 			defer conn.Close()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
 			return
-		}	
+		}
 	}
 }
 
