@@ -84,13 +84,17 @@ func (b *broker) recordEvent(event string, channelName string) {
 	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
 	// http://golang.org/pkg/time/#example_Time_Format
 	layouts := []string{"200601021504", "2006010215", "20060102", "200601", "2006"}
-	for _, layout := range layouts {
-		go func (e,l string) {
-			conn := b.redisPool.Get()
-			defer conn.Close()
-			conn.Do("INCR", e+"-"+time.Now().UTC().Format(l))
-		} (event, layout)
+	group := &sync.WaitGroup{}
+	conn := b.redisPool.Get()
+	defer conn.Close()
+       	for _, layout := range layouts {
+                group.Add(1)
+		go func (e,l string, c redis.Conn, g *sync.WaitGroup) {
+			c.Do("INCR", e+"-"+time.Now().UTC().Format(l))
+			g.Done()
+		} (event, layout, conn, group)
 	}
+	group.Wait()
 }
 
 func (b *broker) start() {
