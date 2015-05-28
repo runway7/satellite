@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"log"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
@@ -45,9 +46,11 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer channel.Off(listener)
 		defer b.recordEvent("finish",channelName)
 		b.recordEvent("subscribe",channelName)
+		log.Println("Subscription started")
 		for {
 			select {
 			case msg := <-listener:
+				log.Println("Sending a message ("+channelName+")")
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  msg,
@@ -55,6 +58,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				f.Flush()
 				go b.recordEvent("send",channelName)
 			case <-closer.CloseNotify():
+				log.Println("Closing "+channelName)
 				go b.recordEvent("close", channelName)
 				return
 			case <-time.After(300 * time.Second):
