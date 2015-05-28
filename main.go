@@ -1,11 +1,12 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
-	"log"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
@@ -14,10 +15,10 @@ import (
 func newPool(server string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
-		MaxActive: 15,
+		MaxActive:   15,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			log.Println("Dialling redis - "+server)
+			log.Println("Dialling redis - " + server)
 			c, err := redis.Dial("tcp", server)
 			if err != nil {
 				log.Println(err)
@@ -29,7 +30,7 @@ func newPool(server string) *redis.Pool {
 					c.Close()
 					return nil, err
 				}
-			} 
+			}
 			return c, err
 		},
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
@@ -40,6 +41,7 @@ func newPool(server string) *redis.Pool {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	router := httprouter.New()
 
 	redisUrlKey := os.Getenv("REDIS_URL_KEY")

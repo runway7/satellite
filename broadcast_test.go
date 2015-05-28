@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"net/http"
-	"net/url"
 	"net/http/httptest"
+	"net/url"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -13,13 +14,14 @@ import (
 )
 
 func TestPubsub(t *testing.T) {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	testPool := newPool("localhost:6379")
 	token := "token"
-	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool,token)))
+	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool, token)))
 	testUrl := monolithServer.URL + "/channel"
 	success := make(chan bool)
 	group := &sync.WaitGroup{}
-	for i := 1; i < 10; i++ {
+	for i := 1; i < 100; i++ {
 		group.Add(1)
 
 		go func(t *testing.T, group *sync.WaitGroup) {

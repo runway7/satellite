@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
-	"log"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
@@ -44,25 +44,25 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		listener := channel.Listen()
 		defer channel.Off(listener)
-		defer b.recordEvent("finish",channelName)
-		b.recordEvent("subscribe",channelName)
+		defer b.recordEvent("finish", channelName)
+		b.recordEvent("subscribe", channelName)
 		log.Println("Subscription started")
 		for {
 			select {
 			case msg := <-listener:
-				log.Println("Sending a message ("+channelName+")")
+				log.Println("Sending a message (" + channelName + ")")
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  msg,
 				})
 				f.Flush()
-				go b.recordEvent("send",channelName)
+				go b.recordEvent("send", channelName)
 			case <-closer.CloseNotify():
-				log.Println("Closing "+channelName)
+				log.Println("Closing " + channelName)
 				go b.recordEvent("close", channelName)
 				return
 			case <-time.After(300 * time.Second):
-				go b.recordEvent("kill",channelName)
+				go b.recordEvent("kill", channelName)
 				return
 			}
 		}
@@ -86,17 +86,18 @@ func (b *broker) recordEvent(event string, channelName string) {
 
 	c := b.redisPool.Get()
 	defer c.Close()
-	c.Do("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
-	c.Do("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
-	c.Do("INCR", event+"-"+time.Now().UTC().Format("20060102"))
-	c.Do("INCR", event+"-"+time.Now().UTC().Format("200601"))
-	c.Do("INCR", event+"-"+time.Now().UTC().Format("2006"))
+	c.Send("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
+	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
+	c.Send("INCR", event+"-"+time.Now().UTC().Format("20060102"))
+	c.Send("INCR", event+"-"+time.Now().UTC().Format("200601"))
+	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006"))
+	c.Flush()
 }
 
 func (b *broker) start() {
 	conn := b.redisPool.Get()
 	defer conn.Close()
-	psc := redis.PubSubConn{conn}
+	psc := redis.PubSubConn{Conn: conn}
 	psc.PSubscribe("*")
 	for {
 		switch n := psc.Receive().(type) {
