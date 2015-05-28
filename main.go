@@ -19,6 +19,7 @@ func newPool(server string) *redis.Pool {
 			log.Println("Dialling redis - "+server)
 			c, err := redis.Dial("redis", server)
 			if err != nil {
+				log.Println(err)
 				return nil, err
 			}
 			return c, err
