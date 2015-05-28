@@ -13,7 +13,7 @@ import (
 
 func newPool(server string) *redis.Pool {
 	return &redis.Pool{
-		MaxIdle:     300,
+		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			log.Println("Dialling redis - "+server)
