@@ -22,6 +22,11 @@ func newPool(server string) *redis.Pool {
 				log.Println(err)
 				return nil, err
 			}
+			if _, err := c.Do("AUTH", os.Getenv("REDIS_PASSWORD")); err != nil {
+				log.Println(err)
+				c.Close()
+				return nil, err
+			} 
 			return c, err
 		},
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
