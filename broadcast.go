@@ -51,6 +51,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Data:  msg,
 				})
 				f.Flush()
+				go b.recordEvent("send",channelName)
 			case <-closer.CloseNotify():
 				return
 			case <-time.After(300 * time.Second):
@@ -62,10 +63,25 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn := b.redisPool.Get()
 			defer conn.Close()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
+			go b.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
 			return
 		}
+	}
+}
+
+func (b *broker) recordEvent(event string, channelName string) {
+	// layout shows by example how the reference time should be represented
+	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
+	// http://golang.org/pkg/time/#example_Time_Format
+	layouts := []string{"2006-01-02-15:04", "2006-01-02-15", "2006-01-02", "2006-01", "2006"}
+	for _, layout := range layouts {
+		go func (l string) {
+			conn := b.redisPool.Get()
+			defer conn.Close()
+			conn.Do("INCR", event+"-"+l)
+		} (layout)
 	}
 }
 
