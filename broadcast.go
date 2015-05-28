@@ -43,6 +43,8 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		listener := channel.Listen()
 		defer channel.Off(listener)
+		defer b.recordEvent("finish",channelName)
+		b.recordEvent("subscribe",channelName)
 		for {
 			select {
 			case msg := <-listener:
@@ -53,8 +55,10 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				f.Flush()
 				go b.recordEvent("send",channelName)
 			case <-closer.CloseNotify():
+				go b.recordEvent("close", channelName)
 				return
 			case <-time.After(300 * time.Second):
+				go b.recordEvent("kill",channelName)
 				return
 			}
 		}
@@ -75,13 +79,13 @@ func (b *broker) recordEvent(event string, channelName string) {
 	// layout shows by example how the reference time should be represented
 	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
 	// http://golang.org/pkg/time/#example_Time_Format
-	layouts := []string{"2006-01-02-15:04", "2006-01-02-15", "2006-01-02", "2006-01", "2006"}
+	layouts := []string{"200601021504", "2006010215", "20060102", "200601", "2006"}
 	for _, layout := range layouts {
-		go func (l string) {
+		go func (e,l string) {
 			conn := b.redisPool.Get()
 			defer conn.Close()
-			conn.Do("INCR", event+"-"+l)
-		} (layout)
+			conn.Do("INCR", e+"-"+time.Now().UTC().Format(l))
+		} (event, layout)
 	}
 }
 
