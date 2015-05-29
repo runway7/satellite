@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/heroku/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -52,7 +52,6 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.Do("INCR", "connection-count")
 		defer c.Do("DECR", "connection-count")
 
-		log.Println("SUB ", channelName)
 		sse.Encode(w, sse.Event{
 			Event: "open",
 			Data:  "START",
@@ -68,7 +67,6 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				f.Flush()
 				go b.recordEvent("send", channelName)
 			case <-closer.CloseNotify():
-				log.Println("CLOSE ", channelName)
 				go b.recordEvent("close", channelName)
 				return
 			case <-time.After(10 * time.Second):
@@ -113,15 +111,17 @@ func (b *broker) log() {
 		select {
 		case <-time.After(5 * time.Second):
 			c := b.redisPool.Get()
-			defer c.close()
+			defer c.Close()
 			ctx := slog.Context{}
 			defer func() { fmt.Println(ctx) }()
-			pubCount, e = redis.String(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
-			ctx.count("publishes.minute", pubCount)
-			sendCount, e = redis.String(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
-			ctx.count("sends.minute", sendCount)
-			pingCount, e = redis.String(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
-			ctx.count("pings.minute", pingCount)
+			pubCount, _ := redis.Int(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
+			ctx.Count("publishes.minute", pubCount)
+			sendCount, _ := redis.Int(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
+			ctx.Count("sends.minute", sendCount)
+			pingCount, _ := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			ctx.Count("pings.minute", pingCount)
+			closeCount, _ := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			ctx.Count("closes.minute", closeCount)
 		}
 	}
 }
