@@ -72,8 +72,13 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Println("Closing " + channelName)
 				go b.recordEvent("close", channelName)
 				return
-			case <-time.After(300 * time.Second):
-				go b.recordEvent("kill", channelName)
+			case <-time.After(5 * time.Second):
+				sse.Encode(w, sse.Event{
+					Event: "message",
+					Data:  "PING",
+				})
+				f.Flush()
+				go b.recordEvent("PING", channelName)
 				return
 			}
 		}
