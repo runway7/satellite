@@ -112,7 +112,6 @@ func (b *broker) log() {
 		select {
 		case <-time.After(5 * time.Second):
 			c := b.redisPool.Get()
-			defer c.Close()
 			ctx := slog.Context{}
 			pubCount, e := redis.Int(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
 			if e != nil {
@@ -135,6 +134,7 @@ func (b *broker) log() {
 			}
 			ctx.Count("closes.minute", closeCount)
 			log.Println(ctx)
+			c.Close()
 		}
 	}
 }
