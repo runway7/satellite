@@ -52,7 +52,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.Do("INCR", "connection-count")
 		defer c.Do("DECR", "connection-count")
 
-		log.Println("Subscription started")
+		log.Println("SUB ", channelName)
 		sse.Encode(w, sse.Event{
 			Event: "open",
 			Data:  "START",
@@ -61,7 +61,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case msg := <-listener:
-				log.Println("Sending a message (" + channelName + ")")
+				log.Println("SEND ", channelName)
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  msg,
@@ -69,10 +69,11 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				f.Flush()
 				go b.recordEvent("send", channelName)
 			case <-closer.CloseNotify():
-				log.Println("Closing " + channelName)
+				log.Println("CLOSE ", channelName)
 				go b.recordEvent("close", channelName)
 				return
 			case <-time.After(5 * time.Second):
+				log.Println("PING ", channelName)
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  "PING",
