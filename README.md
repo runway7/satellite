@@ -21,6 +21,9 @@ Create a `POST` request to `/broadcast/channelName` with `token` and `message` a
 ### Subscribe to a channel / Listen for messages
 Create a `GET` request to `/broadcast/channelName`
 
+### Get number of open connections
+Create a `GET` request to `/openconnections`
+
 ## How it works
 1. A goroutine listens for Redis pubsub messages
    1. It passes it to the appropriate channel 
