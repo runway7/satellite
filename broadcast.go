@@ -61,7 +61,6 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case msg := <-listener:
-				log.Println("SEND ", channelName)
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  msg,
@@ -72,14 +71,13 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Println("CLOSE ", channelName)
 				go b.recordEvent("close", channelName)
 				return
-			case <-time.After(5 * time.Second):
-				log.Println("PING ", channelName)
+			case <-time.After(10 * time.Second):
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  "PING",
 				})
 				f.Flush()
-				go b.recordEvent("PING", channelName)
+				go b.recordEvent("ping", channelName)
 			}
 		}
 	case "POST":
@@ -110,11 +108,30 @@ func (b *broker) recordEvent(event string, channelName string) {
 	c.Flush()
 }
 
+func (b *broker) log() {
+	for {
+		select {
+		case <-time.After(5 * time.Second):
+			c := b.redisPool.Get()
+			defer c.close()
+			ctx := slog.Context{}
+			defer func() { fmt.Println(ctx) }()
+			pubCount, e = redis.String(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
+			ctx.count("publishes.minute", pubCount)
+			sendCount, e = redis.String(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
+			ctx.count("sends.minute", sendCount)
+			pingCount, e = redis.String(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			ctx.count("pings.minute", pingCount)
+		}
+	}
+}
+
 func (b *broker) start() {
 	conn := b.redisPool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
 	psc.PSubscribe("*")
+	go b.log()
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
