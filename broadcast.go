@@ -46,6 +46,12 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer channel.Off(listener)
 		defer b.recordEvent("finish", channelName)
 		b.recordEvent("subscribe", channelName)
+
+		c := b.redisPool.Get()
+		defer c.Close()
+		c.Do("INCR", "connection-count")
+		defer c.Do("DECR, "connection-count")
+
 		log.Println("Subscription started")
 		for {
 			select {
