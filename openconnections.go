@@ -15,7 +15,7 @@ func NewOpenConnectionsHandler(pool *redis.Pool) func(w http.ResponseWriter, req
 		case "GET":
 			c := pool.Get()
 			defer c.Close()
-			connectionCount := c.Do("GET", "connection-count")
+			connectionCount,_ := c.Do("GET", "connection-count")
 		
 			fmt.Fprintf(w, connectionCount)
 		}
