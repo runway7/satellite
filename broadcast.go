@@ -50,7 +50,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c := b.redisPool.Get()
 		defer c.Close()
 		c.Do("INCR", "connection-count")
-		defer c.Do("DECR, "connection-count")
+		defer c.Do("DECR", "connection-count")
 
 		log.Println("Subscription started")
 		for {
