@@ -77,8 +77,8 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		if r.FormValue("token") == b.token {
 			conn := b.redisPool.Get()
-			defer conn.Close()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
+			conn.Close()
 			go b.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
