@@ -58,7 +58,7 @@ func main() {
 	router.HandlerFunc("POST", "/broadcast/:channel", broadcaster)
 
 	openConnections := NewOpenConnectionsHandler(pool)
-	router.HandlerFunct("GET", "/openconnections", openConnections)
+	router.HandlerFunc("GET", "/openconnections", openConnections)
 
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
