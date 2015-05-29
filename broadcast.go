@@ -53,6 +53,11 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer c.Do("DECR", "connection-count")
 
 		log.Println("Subscription started")
+		sse.Encode(w, sse.Event{
+			Event: "open",
+			Data:  "START",
+		})
+		f.Flush()
 		for {
 			select {
 			case msg := <-listener:
