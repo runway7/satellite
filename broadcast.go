@@ -48,11 +48,6 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer b.recordEvent("finish", channelName)
 		b.recordEvent("subscribe", channelName)
 
-		c := b.redisPool.Get()
-		defer c.Close()
-		c.Do("INCR", "connection-count")
-		defer c.Do("DECR", "connection-count")
-
 		sse.Encode(w, sse.Event{
 			Event: "open",
 			Data:  "START",
