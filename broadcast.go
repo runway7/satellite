@@ -79,7 +79,6 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				})
 				f.Flush()
 				go b.recordEvent("PING", channelName)
-				return
 			}
 		}
 	case "POST":
