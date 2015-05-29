@@ -114,13 +114,25 @@ func (b *broker) log() {
 			c := b.redisPool.Get()
 			defer c.Close()
 			ctx := slog.Context{}
-			pubCount, _ := redis.Int(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
+			pubCount, e := redis.Int(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
+			if e != nil {
+				log.Println(e)
+			}
 			ctx.Count("publishes.minute", pubCount)
-			sendCount, _ := redis.Int(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
+			sendCount, e := redis.Int(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
+			if e != nil {
+				log.Println(e)
+			}
 			ctx.Count("sends.minute", sendCount)
-			pingCount, _ := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			pingCount, e := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			if e != nil {
+				log.Println(e)
+			}
 			ctx.Count("pings.minute", pingCount)
-			closeCount, _ := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			closeCount, e := redis.Int(c.Do("GET", "close-"+time.Now().UTC().Format("200601021504")))
+			if e != nil {
+				log.Println(e)
+			}
 			ctx.Count("closes.minute", closeCount)
 			log.Println(ctx)
 		}
