@@ -17,6 +17,7 @@ func newPool(server string) *redis.Pool {
 		MaxIdle:     2,
 		MaxActive:   8,
 		IdleTimeout: 5 * time.Second,
+		Wait:        true,
 		Dial: func() (redis.Conn, error) {
 			log.Println("Dialling redis - " + server)
 			c, err := redis.Dial("tcp", server)
