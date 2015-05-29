@@ -105,17 +105,19 @@ func (b *broker) recordEvent(event string, channelName string) {
 func (b *broker) log() {
 	for {
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(60 * time.Second):
+			t := time.Now().UTC().Add(-time.Minute).Format("200601021504")
 			c := b.redisPool.Get()
 			ctx := slog.Context{}
-			pubCount, _ := redis.Int(c.Do("GET", "publish-"+time.Now().UTC().Format("200601021504")))
+			pubCount, _ := redis.Int(c.Do("GET", "publish-"+t))
 			ctx.Count("publishes.minute", pubCount)
-			sendCount, _ := redis.Int(c.Do("GET", "send-"+time.Now().UTC().Format("200601021504")))
+			sendCount, _ := redis.Int(c.Do("GET", "send-"+t))
 			ctx.Count("sends.minute", sendCount)
-			pingCount, _ := redis.Int(c.Do("GET", "ping-"+time.Now().UTC().Format("200601021504")))
+			pingCount, _ := redis.Int(c.Do("GET", "ping-"+t))
 			ctx.Count("pings.minute", pingCount)
-			closeCount, _ := redis.Int(c.Do("GET", "close-"+time.Now().UTC().Format("200601021504")))
+			closeCount, _ := redis.Int(c.Do("GET", "close-"+t))
 			ctx.Count("closes.minute", closeCount)
+
 			log.Println(ctx)
 			c.Close()
 		}
