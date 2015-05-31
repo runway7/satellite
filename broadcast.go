@@ -79,10 +79,10 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn := b.redisPool.Get()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 			conn.Close()
-			channel, ok := b.channels[n.Channel]
+			channel, ok := b.channels[channelName]
 			if ok {
 				ctx := slog.Context{}
-				ctx.Count(channelName+".listeners", b.channels[channelName].Count())
+				ctx.Count(channelName+".listeners", channel.Count())
 				log.Println(ctx)
 			}
 			go b.recordEvent("publish", channelName)
