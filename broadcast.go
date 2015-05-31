@@ -79,6 +79,12 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn := b.redisPool.Get()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 			conn.Close()
+			channel, ok := b.channels[n.Channel]
+			if ok {
+				ctx := slog.Context{}
+				ctx.Count(channelName+".listeners", b.channels[channelName].Count())
+				log.Println(ctx)
+			}
 			go b.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
