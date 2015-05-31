@@ -117,7 +117,11 @@ func (b *broker) log() {
 			ctx.Count("pings.minute", pingCount)
 			closeCount, _ := redis.Int(c.Do("GET", "close-"+t))
 			ctx.Count("closes.minute", closeCount)
-
+			listenerCount := 0
+			for _, strobe := range b.channels {
+				listenerCount += strobe.Count()
+			}
+			ctx.Count("listeners", listenerCount)
 			log.Println(ctx)
 			c.Close()
 		}
