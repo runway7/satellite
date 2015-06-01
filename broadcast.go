@@ -53,6 +53,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Data:  "START",
 		})
 		f.Flush()
+		killSwitch := time.After(time.Minute)
 		for {
 			select {
 			case msg := <-listener:
@@ -72,6 +73,9 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				})
 				f.Flush()
 				go b.recordEvent("ping", channelName)
+			case <-killSwitch:
+				go b.recordEvent("kill", channelName)
+				return
 			}
 		}
 	case "POST":
