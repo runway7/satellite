@@ -8,7 +8,8 @@ Or:
 
 1. Install Redis
 2. `go get github.com/runway7/satellite`
-3. ????
+3. `go build`
+4. `./satellite`
 
 ## Usage
 1. Save authentication token as `$TOKEN` (you'll use this when you broadcast a message)
