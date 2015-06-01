@@ -145,6 +145,7 @@ func (b *broker) log() {
 			ctx.Count("pings.minute", pingCount)
 			closeCount, _ := redis.Int(c.Do("GET", "close-"+t))
 			ctx.Count("closes.minute", closeCount)
+			log.Println(ctx)
 			c.Close()
 		}
 	}
