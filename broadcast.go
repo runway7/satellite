@@ -53,7 +53,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Data:  "START",
 		})
 		f.Flush()
-		killSwitch := time.After(time.Minute)
+		killSwitch := time.After(5 * time.Minute)
 		for {
 			select {
 			case msg := <-listener:
