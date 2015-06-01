@@ -79,12 +79,15 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn := b.redisPool.Get()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 			conn.Close()
-			channel, ok := b.channels[channelName]
-			if ok {
-				ctx := slog.Context{}
-				ctx.Count(channelName+".listeners", channel.Count())
-				log.Println(ctx)
-			}
+			go func() {
+				channel, ok := b.channels[channelName]
+				if ok {
+					ctx := slog.Context{}
+					ctx.Count(channelName+".listeners", channel.Count())
+					log.Println(ctx)
+				}
+			}()
+
 			go b.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
@@ -108,6 +111,21 @@ func (b *broker) recordEvent(event string, channelName string) {
 	c.Flush()
 }
 
+func (b *broker) logListeners() {
+	for {
+		select {
+		case <-time.After(5 * time.Second):
+			ctx := slog.Context{}
+			listenerCount := 0
+			for _, strobe := range b.channels {
+				listenerCount += strobe.Count()
+			}
+			ctx.Count("listeners", listenerCount)
+			log.Println(ctx)
+		}
+	}
+}
+
 func (b *broker) log() {
 	for {
 		select {
@@ -123,12 +141,6 @@ func (b *broker) log() {
 			ctx.Count("pings.minute", pingCount)
 			closeCount, _ := redis.Int(c.Do("GET", "close-"+t))
 			ctx.Count("closes.minute", closeCount)
-			listenerCount := 0
-			for _, strobe := range b.channels {
-				listenerCount += strobe.Count()
-			}
-			ctx.Count("listeners", listenerCount)
-			log.Println(ctx)
 			c.Close()
 		}
 	}
@@ -140,6 +152,7 @@ func (b *broker) start() {
 	psc := redis.PubSubConn{Conn: conn}
 	psc.PSubscribe("*")
 	go b.log()
+	go b.logListeners()
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
