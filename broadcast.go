@@ -43,6 +43,10 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
 		listener := channel.Listen()
 		defer channel.Off(listener)
 		defer b.recordEvent("finish", channelName)
