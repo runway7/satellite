@@ -38,7 +38,7 @@ func TestPubsub(t *testing.T) {
 				if err != nil {
 					break
 				}
-				if strings.Contains(string(line), "PING") {
+				if strings.Contains(string(line), "PONG") {
 					group.Done()
 				}
 			}

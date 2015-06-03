@@ -56,10 +56,12 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		killSwitch := time.After(5 * time.Minute)
 		for {
 			select {
-			case msg := <-listener:
+			case <-listener:
+				//case msg := <-listener:
 				sse.Encode(w, sse.Event{
 					Event: "message",
-					Data:  msg,
+					Data:  "PONG",
+					//msg,
 				})
 				f.Flush()
 				go b.recordEvent("send", channelName)
