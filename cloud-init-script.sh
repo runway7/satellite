@@ -1,12 +1,12 @@
 #!/bin/bash
-yum install go
+yum update -y
+yum install -y go
 mkdir workspace
 
-echo "GOPATH=~/workspace" >> ~/.bash_profile
-echo "REDIS_URL=r1.gmdl8l.0001.apse1.cache.amazonaws.com:6379 >> ~/.bash_profile
-echo "REDIS_URL_KEY=REDIS_URL" >> ~/.bash_profile
-echo "TOKEN=abcd1234" >> ~/.bash_profile
-source ~/.bash_profile
+export GOPATH=~/workspace
+export REDIS_URL=r1.gmdl8l.0001.apse1.cache.amazonaws.com:6379
+export REDIS_URL_KEY=REDIS_URL
+export TOKEN=abcd1234
 
 go get github.com/runway7/satellite
 
@@ -18,5 +18,4 @@ echo "net.ipv4.tcp_wmem = 4096 4096 16777216" >> /etc/sysctl.conf
 sysctl -p
 
 workspace/bin/satellite
-
 
