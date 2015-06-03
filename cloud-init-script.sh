@@ -17,5 +17,4 @@ echo "net.ipv4.tcp_rmem = 4096 4096 16777216" >> /etc/sysctl.conf
 echo "net.ipv4.tcp_wmem = 4096 4096 16777216" >> /etc/sysctl.conf
 sysctl -p
 
-workspace/bin/satellite
-
+nohup ~/workspace/bin/satellite | logger 2>&1 &
