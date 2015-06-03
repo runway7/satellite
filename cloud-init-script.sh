@@ -10,6 +10,8 @@ export TOKEN=abcd1234
 
 go get github.com/runway7/satellite
 
+ulimit -n 999999
+
 echo "1024 65535" > /proc/sys/net/ipv4/ip_local_port_range
 echo "*                -       nofile          999999" >>  /etc/security/limits.conf
 echo "fs.file-max = 999999" >> /etc/sysctl.conf 
