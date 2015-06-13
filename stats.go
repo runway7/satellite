@@ -7,7 +7,7 @@ import (
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 )
 
-func NewOpenConnectionsHandler(pool *redis.Pool) func(w http.ResponseWriter, req *http.Request) {
+func NewStatsHandler(pool *redis.Pool) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":

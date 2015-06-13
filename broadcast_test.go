@@ -15,7 +15,7 @@ import (
 
 func TestPubsub(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	testPool := newPool("localhost:6379")
+	testPool := newPool("localhost:6379", "")
 	token := "token"
 	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool, token)))
 	testUrl := monolithServer.URL + "/channel"

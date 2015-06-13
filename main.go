@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -12,19 +13,53 @@ import (
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 )
 
-func newPool(server string) *redis.Pool {
+func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	redisUrlKey := os.Getenv("SATELLITE_REDIS_URL_KEY")
+	redisURL := os.Getenv(redisUrlKey)
+
+	if redisURL == "" {
+		redisURL = "localhost:6379"
+	}
+	u, err := url.Parse(redisURL)
+	if err != nil {
+		panic(err)
+	}
+	redisHost := u.Host
+	redisPassword, _ := u.User.Password()
+	pool := newPool(redisHost, redisPassword)
+
+	token := os.Getenv("TOKEN")
+
+	broadcaster := NewBroadcastHandler(pool, token)
+	stats := NewStatsHandler(pool)
+
+	router := httprouter.New()
+	router.HandlerFunc("GET", "/", stats)
+	router.HandlerFunc("GET", "/:channel", broadcaster)
+	router.HandlerFunc("POST", "/:channel", broadcaster)
+
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "3001"
+	}
+	http.ListenAndServe(":"+port, router)
+}
+
+func newPool(host, password string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     2,
-		MaxActive:   8,
+		MaxActive:   5,
 		IdleTimeout: 5 * time.Second,
 		Wait:        true,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", server)
+			c, err := redis.Dial("tcp", host)
 			if err != nil {
 				log.Println(err)
 				return nil, err
 			}
-			if password := os.Getenv("REDIS_PASSWORD"); password != "" {
+			if password != "" {
 				if _, err := c.Do("AUTH", password); err != nil {
 					log.Println(err)
 					c.Close()
@@ -33,36 +68,5 @@ func newPool(server string) *redis.Pool {
 			}
 			return c, err
 		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
 	}
-}
-
-func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	router := httprouter.New()
-
-	redisUrlKey := os.Getenv("REDIS_URL_KEY")
-	redisURL := os.Getenv(redisUrlKey)
-	if redisURL == "" {
-		redisURL = "localhost:6379"
-	}
-
-	pool := newPool(redisURL)
-
-	token := os.Getenv("TOKEN")
-	broadcaster := NewBroadcastHandler(pool, token)
-	router.HandlerFunc("GET", "/broadcast/:channel", broadcaster)
-	router.HandlerFunc("POST", "/broadcast/:channel", broadcaster)
-
-	openConnections := NewOpenConnectionsHandler(pool)
-	router.HandlerFunc("GET", "/openconnections", openConnections)
-
-	port := strings.TrimSpace(os.Getenv("PORT"))
-	if port == "" {
-		port = "3001"
-	}
-	http.ListenAndServe(":"+port, router)
 }

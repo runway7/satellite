@@ -2,33 +2,35 @@ package main
 
 import (
 	"fmt"
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/heroku/slog"
 	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/heroku/slog"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/sudhirj/strobe"
 )
 
-type broker struct {
+type satellite struct {
 	channels  map[string]*strobe.Strobe
 	redisPool *redis.Pool
 	token     string
-	sync.RWMutex
+	sync.Mutex
 }
 
-func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	channelName := r.URL.Path
-	b.Lock()
-	channel, ok := b.channels[channelName]
+
+	channel, ok := s.channels[channelName]
 	if !ok {
+		s.Lock()
 		channel = strobe.NewStrobe()
-		b.channels[channelName] = channel
+		s.channels[channelName] = channel
+		s.Unlock()
 	}
-	b.Unlock()
 	switch r.Method {
 	case "GET":
 		f, ok := w.(http.Flusher)
@@ -49,8 +51,8 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		listener := channel.Listen()
 		defer channel.Off(listener)
-		defer b.recordEvent("finish", channelName)
-		b.recordEvent("subscribe", channelName)
+		defer s.recordEvent("finish", channelName)
+		s.recordEvent("subscribe", channelName)
 
 		sse.Encode(w, sse.Event{
 			Event: "open",
@@ -68,9 +70,9 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					//msg,
 				})
 				f.Flush()
-				go b.recordEvent("send", channelName)
+				go s.recordEvent("send", channelName)
 			case <-closer.CloseNotify():
-				go b.recordEvent("close", channelName)
+				go s.recordEvent("close", channelName)
 				return
 			case <-time.After(10 * time.Second):
 				sse.Encode(w, sse.Event{
@@ -78,27 +80,18 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Data:  "PING",
 				})
 				f.Flush()
-				go b.recordEvent("ping", channelName)
+				go s.recordEvent("ping", channelName)
 			case <-killSwitch:
-				go b.recordEvent("kill", channelName)
+				go s.recordEvent("kill", channelName)
 				return
 			}
 		}
 	case "POST":
-		if r.FormValue("token") == b.token {
-			conn := b.redisPool.Get()
+		if r.FormValue("token") == s.token {
+			conn := s.redisPool.Get()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 			conn.Close()
-			go func() {
-				channel, ok := b.channels[channelName]
-				if ok {
-					ctx := slog.Context{}
-					ctx.Count(channelName+".listeners", channel.Count())
-					log.Println(ctx)
-				}
-			}()
-
-			go b.recordEvent("publish", channelName)
+			go s.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
 			return
@@ -106,7 +99,7 @@ func (b *broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *broker) recordEvent(event string, channelName string) {
+func (b *satellite) recordEvent(event string, channelName string) {
 	// the layout string shows by example how the reference time should be represented
 	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
 	// http://golang.org/pkg/time/#example_Time_Format
@@ -121,7 +114,7 @@ func (b *broker) recordEvent(event string, channelName string) {
 	c.Flush()
 }
 
-func (b *broker) logListeners() {
+func (b *satellite) logListeners() {
 	for {
 		select {
 		case <-time.After(5 * time.Second):
@@ -136,7 +129,7 @@ func (b *broker) logListeners() {
 	}
 }
 
-func (b *broker) log() {
+func (b *satellite) log() {
 	for {
 		select {
 		case <-time.After(60 * time.Second):
@@ -157,7 +150,7 @@ func (b *broker) log() {
 	}
 }
 
-func (b *broker) start() {
+func (b *satellite) start() {
 	conn := b.redisPool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
@@ -181,7 +174,7 @@ func (b *broker) start() {
 
 // NewBroadcastHandler creates a new handler that handles pub sub
 func NewBroadcastHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
-	broker := &broker{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
+	broker := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
 	go broker.start()
 	return broker.ServeHTTP
 }
