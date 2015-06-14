@@ -32,7 +32,7 @@ func main() {
 
 	token := os.Getenv("TOKEN")
 
-	broadcaster := NewBroadcastHandler(pool, token)
+	broadcaster := NewSatelliteHandler(pool, token)
 	stats := NewStatsHandler(pool)
 
 	router := httprouter.New()

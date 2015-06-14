@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
-
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/heroku/slog"
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
@@ -23,14 +21,13 @@ type satellite struct {
 
 func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	channelName := r.URL.Path
-
+	s.Lock()
 	channel, ok := s.channels[channelName]
 	if !ok {
-		s.Lock()
 		channel = strobe.NewStrobe()
 		s.channels[channelName] = channel
-		s.Unlock()
 	}
+	s.Unlock()
 	switch r.Method {
 	case "GET":
 		f, ok := w.(http.Flusher)
@@ -63,11 +60,9 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-listener:
-				//case msg := <-listener:
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  "PONG",
-					//msg,
 				})
 				f.Flush()
 				go s.recordEvent("send", channelName)
@@ -114,53 +109,30 @@ func (b *satellite) recordEvent(event string, channelName string) {
 	c.Flush()
 }
 
-func (b *satellite) logListeners() {
-	for {
-		select {
-		case <-time.After(5 * time.Second):
-			ctx := slog.Context{}
-			listenerCount := 0
-			for _, strobe := range b.channels {
-				listenerCount += strobe.Count()
-			}
-			ctx.Count("listeners", listenerCount)
-			log.Println(ctx)
-		}
-	}
-}
+// func (b *satellite) logListeners() {
+// 	for {
+// 		select {
+// 		case <-time.After(5 * time.Second):
+// 			ctx := slog.Context{}
+// 			listenerCount := 0
+// 			for _, strobe := range b.channels {
+// 				listenerCount += strobe.Count()
+// 			}
+// 			ctx.Count("listeners", listenerCount)
+// 			log.Println(ctx)
+// 		}
+// 	}
+// }
 
-func (b *satellite) log() {
-	for {
-		select {
-		case <-time.After(60 * time.Second):
-			t := time.Now().UTC().Add(-time.Minute).Format("200601021504")
-			c := b.redisPool.Get()
-			ctx := slog.Context{}
-			pubCount, _ := redis.Int(c.Do("GET", "publish-"+t))
-			ctx.Count("publishes.minute", pubCount)
-			sendCount, _ := redis.Int(c.Do("GET", "send-"+t))
-			ctx.Count("sends.minute", sendCount)
-			pingCount, _ := redis.Int(c.Do("GET", "ping-"+t))
-			ctx.Count("pings.minute", pingCount)
-			closeCount, _ := redis.Int(c.Do("GET", "close-"+t))
-			ctx.Count("closes.minute", closeCount)
-			log.Println(ctx)
-			c.Close()
-		}
-	}
-}
-
-func (b *satellite) start() {
-	conn := b.redisPool.Get()
-	defer conn.Close()
-	psc := redis.PubSubConn{Conn: conn}
+func (s *satellite) start() {
+	r := s.redisPool.Get()
+	defer r.Close()
+	psc := redis.PubSubConn{Conn: r}
 	psc.PSubscribe("*")
-	go b.log()
-	go b.logListeners()
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
-			channel, ok := b.channels[n.Channel]
+			channel, ok := s.channels[n.Channel]
 			if ok {
 				channel.Pulse(string(n.Data))
 			}
@@ -173,8 +145,9 @@ func (b *satellite) start() {
 }
 
 // NewBroadcastHandler creates a new handler that handles pub sub
-func NewBroadcastHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
-	broker := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
-	go broker.start()
-	return broker.ServeHTTP
+func NewSatelliteHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	s := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
+	go s.start()
+	return s.ServeHTTP
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,28 +14,32 @@ import (
 	"time"
 )
 
-func TestPubsub(t *testing.T) {
+func makeTestServer() *httptest.Server {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	testPool := newPool("localhost:6379", "")
 	token := "token"
-	monolithServer := httptest.NewServer(http.HandlerFunc(NewBroadcastHandler(testPool, token)))
-	testUrl := monolithServer.URL + "/channel"
-	success := make(chan bool)
-	group := &sync.WaitGroup{}
-	for i := 1; i < 2; i++ {
-		group.Add(1)
+	return httptest.NewServer(http.HandlerFunc(NewSatelliteHandler(testPool, token)))
+}
 
+func runTestOnChannel(t *testing.T, channelURL string) chan bool {
+	finished := make(chan bool)
+	waits := &sync.WaitGroup{}
+	subscriberCount := rand.Intn(20)
+	subscriberWaits := &sync.WaitGroup{}
+	subscriberWaits.Add(subscriberCount)
+	for i := 0; i < subscriberCount; i++ {
+		waits.Add(1)
 		go func(t *testing.T, group *sync.WaitGroup) {
-			resp, err := http.Get(testUrl)
+			resp, err := http.Get(channelURL)
 			if err != nil {
 				t.Error("should have been able to make the connection")
 			}
 			defer resp.Body.Close()
+			subscriberWaits.Done()
 			reader := bufio.NewReader(resp.Body)
 			for {
 				line, err := reader.ReadBytes('\n')
 				line = bytes.TrimSpace(line)
-				t.Log("Received SSE message message ", string(line))
 				if err != nil {
 					break
 				}
@@ -42,28 +47,46 @@ func TestPubsub(t *testing.T) {
 					group.Done()
 				}
 			}
-			if err != nil {
-				t.Error("Shouldn't be an error")
-			}
-		}(t, group)
+		}(t, waits)
 	}
 
-	go func(group *sync.WaitGroup) {
-		group.Wait()
-		success <- true
-	}(group)
+	go func() {
+		waits.Wait()
+		finished <- true
+	}()
 
 	go func() {
-		time.Sleep(time.Second / 100)
+		subscriberWaits.Wait()
 		v := url.Values{}
 		v.Set("token", "token")
 		v.Add("message", "PING")
-		http.PostForm(testUrl, v)
+		http.PostForm(channelURL, v)
 	}()
 
+	return finished
+}
+
+func TestSatellite(t *testing.T) {
+	monolithServer := makeTestServer()
+	testCount := rand.Intn(20)
+	testWaits := &sync.WaitGroup{}
+	testWaits.Add(testCount)
+	for i := 0; i < testCount; i++ {
+		testUrl := monolithServer.URL + "/" + string(i)
+		finished := runTestOnChannel(t, testUrl)
+		go func(f chan bool, w *sync.WaitGroup) {
+			<-f
+			w.Done()
+		}(finished, testWaits)
+	}
+	success := make(chan bool)
+	go func() {
+		testWaits.Wait()
+		success <- true
+	}()
 	select {
 	case <-success:
-	case <-time.After(3 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Error("No message received")
 	}
 }
