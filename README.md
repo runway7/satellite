@@ -34,4 +34,4 @@ Create a `GET` request to `/openconnections`
 
 3. When a POST request is received with token and message, the goroutine publishes it using Redis pubsub
 
-The app uses [Strobe](github.com/sudhirj/strobe) for the channels, [Redigo](github.com/garyburd/redigo/redis) to pass messages between servers, and [SSE](github.com/manucorporat/sse) to broadcast the messages to the web user.
+The app uses [Strobe](https://github.com/sudhirj/strobe) for the channels, [Redigo](https://github.com/garyburd/redigo) to pass messages between servers, and [SSE](https://github.com/manucorporat/sse) to broadcast the messages to the web user.
