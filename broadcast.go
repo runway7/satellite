@@ -47,7 +47,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Connection", "keep-alive")
 
 		listener := channel.Listen()
-		defer channel.Off(listener)
+		defer listener.Close()
 		defer s.recordEvent("finish", channelName)
 		s.recordEvent("subscribe", channelName)
 
@@ -59,7 +59,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		killSwitch := time.After(5 * time.Minute)
 		for {
 			select {
-			case <-listener:
+			case <-listener.Receiver():
 				sse.Encode(w, sse.Event{
 					Event: "message",
 					Data:  "PONG",

@@ -11,10 +11,6 @@
 			"Rev": "3e4727f0ef5938d3a846cdb57e560dba4419e854"
 		},
 		{
-			"ImportPath": "github.com/heroku/slog",
-			"Rev": "7746152d93404575df4efa59a29adb8c168c464a"
-		},
-		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
 			"Rev": "8c199fb6259ffc1af525cc3ad52ee60ba8359669"
 		},
@@ -24,7 +20,7 @@
 		},
 		{
 			"ImportPath": "github.com/sudhirj/strobe",
-			"Rev": "20d1876005d5182b4111c5cbef77f6f708d97df8"
+			"Rev": "4201b91a1e7acd5fdd3f5924b9031e287a2dedb0"
 		}
 	]
 }
