@@ -8,7 +8,6 @@
       "heroku-redis:test"
   ],
   "env": {
-      "BUILDPACK_URL": "https://github.com/heroku/heroku-buildpack-go",
       "SATELLITE_REDIS_URL_KEY": "REDIS_URL"
   }
 }
