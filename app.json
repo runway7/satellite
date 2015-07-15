@@ -5,7 +5,7 @@
   "keywords": ["golang", "SSE", "redis"],
   "success_url": "/",
   "addons": [
-      "heroku-redis:test"
+      "heroku-redis:hobby-dev"
   ],
   "env": {
       "SATELLITE_REDIS_URL_KEY": "REDIS_URL"
