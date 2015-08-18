@@ -11,6 +11,7 @@ import (
 
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
+	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/rs/cors"
 )
 
 func main() {
@@ -44,7 +45,12 @@ func main() {
 	if port == "" {
 		port = "3001"
 	}
-	http.ListenAndServe(":"+port, router)
+
+	handler := cors.Default().Handler(router)
+	err = http.ListenAndServe(":"+port, handler)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func newPool(host, password string) *redis.Pool {

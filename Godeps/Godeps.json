@@ -19,6 +19,10 @@
 			"Rev": "b7eeebd8987e6b233e43db2551d43f71b2e115d5"
 		},
 		{
+			"ImportPath": "github.com/rs/cors",
+			"Rev": "a4c23809d15590a94f37d870f991f0c49998591c"
+		},
+		{
 			"ImportPath": "github.com/sudhirj/strobe",
 			"Rev": "4201b91a1e7acd5fdd3f5924b9031e287a2dedb0"
 		}
