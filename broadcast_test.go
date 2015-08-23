@@ -67,13 +67,13 @@ func runTestOnChannel(t *testing.T, channelURL string) chan bool {
 }
 
 func TestSatellite(t *testing.T) {
-	monolithServer := makeTestServer()
+	satelliteServer := makeTestServer()
 	testCount := rand.Intn(20)
 	testWaits := &sync.WaitGroup{}
 	testWaits.Add(testCount)
 	for i := 0; i < testCount; i++ {
-		testUrl := monolithServer.URL + "/" + string(i)
-		finished := runTestOnChannel(t, testUrl)
+		testURL := satelliteServer.URL + "/" + string(i)
+		finished := runTestOnChannel(t, testURL)
 		go func(f chan bool, w *sync.WaitGroup) {
 			<-f
 			w.Done()

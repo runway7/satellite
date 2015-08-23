@@ -94,12 +94,12 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *satellite) recordEvent(event string, channelName string) {
+func (s *satellite) recordEvent(event string, channelName string) {
 	// the layout string shows by example how the reference time should be represented
 	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
 	// http://golang.org/pkg/time/#example_Time_Format
 
-	c := b.redisPool.Get()
+	c := s.redisPool.Get()
 	defer c.Close()
 	c.Send("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
 	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
@@ -108,21 +108,6 @@ func (b *satellite) recordEvent(event string, channelName string) {
 	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006"))
 	c.Flush()
 }
-
-// func (b *satellite) logListeners() {
-// 	for {
-// 		select {
-// 		case <-time.After(5 * time.Second):
-// 			ctx := slog.Context{}
-// 			listenerCount := 0
-// 			for _, strobe := range b.channels {
-// 				listenerCount += strobe.Count()
-// 			}
-// 			ctx.Count("listeners", listenerCount)
-// 			log.Println(ctx)
-// 		}
-// 	}
-// }
 
 func (s *satellite) start() {
 	r := s.redisPool.Get()
@@ -140,11 +125,10 @@ func (s *satellite) start() {
 			fmt.Printf("error: %v\n", n)
 			return
 		}
-
 	}
 }
 
-// NewBroadcastHandler creates a new handler that handles pub sub
+// NewSatelliteHandler creates a new handler that handles pub sub
 func NewSatelliteHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	s := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
