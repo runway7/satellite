@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"github.com/garyburd/redigo/redis"
 )
 
 func NewStatsHandler(pool *redis.Pool) func(w http.ResponseWriter, req *http.Request) {

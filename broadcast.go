@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/manucorporat/sse"
-	"github.com/runway7/satellite/Godeps/_workspace/src/github.com/sudhirj/strobe"
+	"github.com/garyburd/redigo/redis"
+	"github.com/manucorporat/sse"
+	"github.com/sudhirj/strobe"
 )
 
 type satellite struct {
