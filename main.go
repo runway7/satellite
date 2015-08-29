@@ -17,9 +17,11 @@ import (
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	redisUrlKey := os.Getenv("SATELLITE_REDIS_URL_KEY")
-	redisURL := os.Getenv(redisUrlKey)
-
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURLKey := os.Getenv("SATELLITE_REDIS_URL_KEY")
+		redisURL = os.Getenv(redisURLKey)
+	}
 	if redisURL == "" {
 		redisURL = "localhost:6379"
 	}
