@@ -1,16 +1,16 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/donovanhide/eventsource"
 )
 
 func makeTestServer() *httptest.Server {
@@ -22,30 +22,27 @@ func makeTestServer() *httptest.Server {
 func runTestOnChannel(t *testing.T, channelURL string) chan bool {
 	finished := make(chan bool)
 	waits := &sync.WaitGroup{}
-	subscriberCount := rand.Intn(20)
+	subscriberCount := rand.Intn(20) + 1
 	subscriberWaits := &sync.WaitGroup{}
 	subscriberWaits.Add(subscriberCount)
+	message := strconv.Itoa(subscriberCount)
 	for i := 0; i < subscriberCount; i++ {
 		waits.Add(1)
-		go func(t *testing.T, group *sync.WaitGroup) {
-			resp, err := http.Get(channelURL)
+		go func() {
+			stream, err := eventsource.Subscribe(channelURL, "")
 			if err != nil {
-				t.Error("should have been able to make the connection")
+				t.Fatal(err)
 			}
-			defer resp.Body.Close()
+			go func() {
+				for {
+					e := <-stream.Events
+					if e.Data() == message {
+						waits.Done()
+					}
+				}
+			}()
 			subscriberWaits.Done()
-			reader := bufio.NewReader(resp.Body)
-			for {
-				line, err := reader.ReadBytes('\n')
-				line = bytes.TrimSpace(line)
-				if err != nil {
-					break
-				}
-				if strings.Contains(string(line), "PONG") {
-					group.Done()
-				}
-			}
-		}(t, waits)
+		}()
 	}
 
 	go func() {
@@ -57,7 +54,7 @@ func runTestOnChannel(t *testing.T, channelURL string) chan bool {
 		subscriberWaits.Wait()
 		v := url.Values{}
 		v.Set("token", "token")
-		v.Add("message", "PING")
+		v.Set("message", message)
 		http.PostForm(channelURL, v)
 	}()
 
@@ -65,12 +62,14 @@ func runTestOnChannel(t *testing.T, channelURL string) chan bool {
 }
 
 func TestSatellite(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
 	satelliteServer := makeTestServer()
-	testCount := rand.Intn(20)
+	baseURL := satelliteServer.URL
+	testCount := rand.Intn(10) + 1
 	testWaits := &sync.WaitGroup{}
 	testWaits.Add(testCount)
 	for i := 0; i < testCount; i++ {
-		testURL := satelliteServer.URL + "/" + string(i)
+		testURL := baseURL + "/" + strconv.Itoa(i)
 		finished := runTestOnChannel(t, testURL)
 		go func(f chan bool, w *sync.WaitGroup) {
 			<-f

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
-	"runtime"
 	"sync"
 	"time"
+
+	"log"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/manucorporat/sse"
@@ -16,7 +16,7 @@ type satellite struct {
 	channels  map[string]*strobe.Strobe
 	redisPool *redis.Pool
 	token     string
-	sync.Mutex
+	sync.RWMutex
 }
 
 func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -59,10 +59,10 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		killSwitch := time.After(5 * time.Minute)
 		for {
 			select {
-			case <-listener.Receiver():
+			case m := <-listener.Receiver():
 				sse.Encode(w, sse.Event{
 					Event: "message",
-					Data:  "PONG",
+					Data:  m,
 				})
 				f.Flush()
 				go s.recordEvent("send", channelName)
@@ -99,14 +99,14 @@ func (s *satellite) recordEvent(event string, channelName string) {
 	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
 	// http://golang.org/pkg/time/#example_Time_Format
 
-	c := s.redisPool.Get()
-	defer c.Close()
-	c.Send("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
-	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
-	c.Send("INCR", event+"-"+time.Now().UTC().Format("20060102"))
-	c.Send("INCR", event+"-"+time.Now().UTC().Format("200601"))
-	c.Send("INCR", event+"-"+time.Now().UTC().Format("2006"))
-	c.Flush()
+	// c := s.redisPool.Get()
+	// defer c.Close()
+	// c.Send("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
+	// c.Send("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
+	// c.Send("INCR", event+"-"+time.Now().UTC().Format("20060102"))
+	// c.Send("INCR", event+"-"+time.Now().UTC().Format("200601"))
+	// c.Send("INCR", event+"-"+time.Now().UTC().Format("2006"))
+	// c.Flush()
 }
 
 func (s *satellite) start() {
@@ -117,12 +117,14 @@ func (s *satellite) start() {
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
+			s.RLock()
 			channel, ok := s.channels[n.Channel]
+			s.RUnlock()
 			if ok {
 				channel.Pulse(string(n.Data))
 			}
 		case error:
-			fmt.Printf("error: %v\n", n)
+			log.Printf("error: %v\n", n)
 			return
 		}
 	}
@@ -130,7 +132,6 @@ func (s *satellite) start() {
 
 // NewSatelliteHandler creates a new handler that handles pub sub
 func NewSatelliteHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	s := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
 	go s.start()
 	return s.ServeHTTP
