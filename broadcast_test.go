@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -15,7 +14,6 @@ import (
 )
 
 func makeTestServer() *httptest.Server {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	testPool := newPool("localhost:6379", "")
 	token := "token"
 	return httptest.NewServer(http.HandlerFunc(NewSatelliteHandler(testPool, token)))

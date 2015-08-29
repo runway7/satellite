@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -15,8 +14,6 @@ import (
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
 		redisURLKey := os.Getenv("SATELLITE_REDIS_URL_KEY")

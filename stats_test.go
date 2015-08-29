@@ -5,14 +5,12 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
 )
 
 func xTestOpenConnections(t *testing.T) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	testPool := newPool("localhost:6379", "")
 	monolithServer := httptest.NewServer(http.HandlerFunc(NewStatsHandler(testPool)))
 	testUrl := monolithServer.URL + "/openconnections"
