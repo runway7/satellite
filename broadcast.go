@@ -48,8 +48,6 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		listener := channel.Listen()
 		defer listener.Close()
-		defer s.recordEvent("finish", channelName)
-		s.recordEvent("subscribe", channelName)
 
 		sse.Encode(w, sse.Event{
 			Event: "open",
@@ -65,9 +63,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Data:  m,
 				})
 				f.Flush()
-				go s.recordEvent("send", channelName)
 			case <-closer.CloseNotify():
-				go s.recordEvent("close", channelName)
 				return
 			case <-time.After(10 * time.Second):
 				sse.Encode(w, sse.Event{
@@ -75,9 +71,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Data:  "PING",
 				})
 				f.Flush()
-				go s.recordEvent("ping", channelName)
 			case <-killSwitch:
-				go s.recordEvent("kill", channelName)
 				return
 			}
 		}
@@ -86,27 +80,11 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn := s.redisPool.Get()
 			conn.Do("PUBLISH", channelName, r.FormValue("message"))
 			conn.Close()
-			go s.recordEvent("publish", channelName)
 		} else {
 			http.Error(w, "Authentication Error", http.StatusUnauthorized)
 			return
 		}
 	}
-}
-
-func (s *satellite) recordEvent(event string, channelName string) {
-	// the layout string shows by example how the reference time should be represented
-	// where reference time is Mon Jan 2 15:04:05 -0700 MST 2006
-	// http://golang.org/pkg/time/#example_Time_Format
-
-	// c := s.redisPool.Get()
-	// defer c.Close()
-	// c.Send("INCR", event+"-"+time.Now().UTC().Format("200601021504"))
-	// c.Send("INCR", event+"-"+time.Now().UTC().Format("2006010215"))
-	// c.Send("INCR", event+"-"+time.Now().UTC().Format("20060102"))
-	// c.Send("INCR", event+"-"+time.Now().UTC().Format("200601"))
-	// c.Send("INCR", event+"-"+time.Now().UTC().Format("2006"))
-	// c.Flush()
 }
 
 func (s *satellite) start() {

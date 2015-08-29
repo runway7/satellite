@@ -33,10 +33,8 @@ func main() {
 	token := os.Getenv("TOKEN")
 
 	broadcaster := NewSatelliteHandler(pool, token)
-	stats := NewStatsHandler(pool)
 
 	router := httprouter.New()
-	router.HandlerFunc("GET", "/", stats)
 	router.HandlerFunc("GET", "/:channel", broadcaster)
 	router.HandlerFunc("POST", "/:channel", broadcaster)
 
