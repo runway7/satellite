@@ -59,6 +59,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			select {
 			case m := <-listener.Receiver():
 				sse.Encode(w, sse.Event{
+					Id:    time.Now().String(),
 					Event: "message",
 					Data:  m,
 				})
@@ -67,7 +68,8 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			case <-time.After(10 * time.Second):
 				sse.Encode(w, sse.Event{
-					Event: "message",
+					Id:    time.Now().String(),
+					Event: "heartbeat",
 					Data:  "PING",
 				})
 				flusher.Flush()
