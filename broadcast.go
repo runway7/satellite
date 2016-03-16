@@ -30,7 +30,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.Unlock()
 	switch r.Method {
 	case "GET":
-		f, ok := w.(http.Flusher)
+		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
 			return
@@ -53,7 +53,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Event: "open",
 			Data:  "START",
 		})
-		f.Flush()
+		flusher.Flush()
 		killSwitch := time.After(5 * time.Minute)
 		for {
 			select {
@@ -62,7 +62,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Event: "message",
 					Data:  m,
 				})
-				f.Flush()
+				flusher.Flush()
 			case <-closer.CloseNotify():
 				return
 			case <-time.After(10 * time.Second):
@@ -70,7 +70,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Event: "message",
 					Data:  "PING",
 				})
-				f.Flush()
+				flusher.Flush()
 			case <-killSwitch:
 				return
 			}
