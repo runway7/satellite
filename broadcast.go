@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -50,6 +51,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer listener.Close()
 
 		sse.Encode(w, sse.Event{
+			Id:    strconv.Itoa(int(time.Now().UnixNano())),
 			Event: "open",
 			Data:  "START",
 		})
@@ -59,7 +61,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			select {
 			case m := <-listener.Receiver():
 				sse.Encode(w, sse.Event{
-					Id:    time.Now().String(),
+					Id:    strconv.Itoa(int(time.Now().UnixNano())),
 					Event: "message",
 					Data:  m,
 				})
@@ -68,7 +70,7 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			case <-time.After(10 * time.Second):
 				sse.Encode(w, sse.Event{
-					Id:    time.Now().String(),
+					Id:    strconv.Itoa(int(time.Now().UnixNano())),
 					Event: "heartbeat",
 					Data:  "PING",
 				})
