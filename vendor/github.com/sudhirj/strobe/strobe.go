@@ -2,6 +2,7 @@ package strobe
 
 import "sync"
 
+// ClosableReceiver provides a read only channel that needs to be closed after use.
 type ClosableReceiver interface {
 	Receiver() <-chan string
 	Close()
@@ -20,46 +21,48 @@ func (l *listener) Close() {
 	l.closer <- true
 }
 
-//Strobe is an emitter that allows broadcasting and listening to messages via channels
+// Strobe is an emitter that allows broadcasting messages by channel fan-out.
 type Strobe struct {
 	listeners map[listener]bool
-	sync.Mutex
+	lock      sync.Mutex
 }
 
-//Listen creates a new receiver channel which acts as a subscription. In order to prevent leaks, always return a channel after use via `Forget`
+// Listen creates a new ClosableReceiver on which holds a channel on
+// which messages can be received. Close() must be called after usage.
 func (s *Strobe) Listen() ClosableReceiver {
 	l := listener{channel: make(chan string), closer: make(chan bool)}
-	s.Lock()
+	s.lock.Lock()
 	s.listeners[l] = true
-	s.Unlock()
+	s.lock.Unlock()
 	go func() {
 		<-l.closer
-		s.Lock()
+		s.lock.Lock()
 		delete(s.listeners, l)
-		s.Unlock()
+		s.lock.Unlock()
 		close(l.channel)
 		close(l.closer)
 	}()
 	return &l
 }
 
-//Pulse sends a message to all listening channels
+// Pulse sends a message to all listening channels that have been checked out
+// with Listen().
 func (s *Strobe) Pulse(message string) {
-	s.Lock()
+	s.lock.Lock()
 	for c := range s.listeners {
 		go func(ch chan string, m string) {
 			ch <- message
 		}(c.channel, message)
 	}
-	s.Unlock()
+	s.lock.Unlock()
 }
 
-//Count gives the number of listeners
+// Count the number of active listeners on this strobe.
 func (s *Strobe) Count() int {
 	return len(s.listeners)
 }
 
-//NewStrobe creates a new Strobe that can be used for PubSub
+// NewStrobe creates a new Strobe.
 func NewStrobe() *Strobe {
 	return &Strobe{listeners: make(map[listener]bool)}
 }
