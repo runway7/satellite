@@ -1,4 +1,44 @@
 {
 	"ImportPath": "github.com/runway7/satellite",
-	"GoVersion": "go1.6"
+	"GoVersion": "go1.6",
+	"GodepVersion": "v58",
+	"Deps": [
+		{
+			"ImportPath": "github.com/donovanhide/eventsource",
+			"Rev": "1612860c8bb8547e478e7b6a4da4e4063a4e452f"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "5f01fdde266ce8448600f4a510bb1c05a8d288f1"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "5f01fdde266ce8448600f4a510bb1c05a8d288f1"
+		},
+		{
+			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Comment": "v1.1-3-g6aacfd5",
+			"Rev": "6aacfd5ab513e34f7e64ea9627ab9670371b34e7"
+		},
+		{
+			"ImportPath": "github.com/manucorporat/sse",
+			"Rev": "b7eeebd8987e6b233e43db2551d43f71b2e115d5"
+		},
+		{
+			"ImportPath": "github.com/rs/cors",
+			"Rev": "5950cf11d77f8a61b432a25dd4d444b4ced01379"
+		},
+		{
+			"ImportPath": "github.com/rs/xhandler",
+			"Rev": "d9d9599b6aaf6a058cb7b1f48291ded2cbd13390"
+		},
+		{
+			"ImportPath": "github.com/sudhirj/strobe",
+			"Rev": "ca0d71050fa09cba680b2ad7a9bdca32c35a797a"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "35b06af0720201bc2f326773a80767387544f8c4"
+		}
+	]
 }
