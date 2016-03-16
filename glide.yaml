@@ -1,0 +1,15 @@
+package: github.com/runway7/satellite
+import:
+- package: github.com/garyburd/redigo
+  version: 3e4727f0ef5938d3a846cdb57e560dba4419e854
+  subpackages:
+  - internal
+  - redis
+- package: github.com/julienschmidt/httprouter
+  version: 6aacfd5ab513e34f7e64ea9627ab9670371b34e7
+- package: github.com/manucorporat/sse
+  version: b7eeebd8987e6b233e43db2551d43f71b2e115d5
+- package: github.com/rs/cors
+  version: a4c23809d15590a94f37d870f991f0c49998591c
+- package: github.com/sudhirj/strobe
+  version: 4201b91a1e7acd5fdd3f5924b9031e287a2dedb0

@@ -92,6 +92,7 @@ func (s *satellite) start() {
 	defer r.Close()
 	psc := redis.PubSubConn{Conn: r}
 	psc.PSubscribe("*")
+	defer psc.Close()
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
