@@ -55,10 +55,10 @@ func newPool(host, password string) *redis.Pool {
 				return nil, err
 			}
 			if password != "" {
-				if _, err := c.Do("AUTH", password); err != nil {
-					log.Println(err)
+				if _, err2 := c.Do("AUTH", password); err2 != nil {
+					log.Println(err2)
 					c.Close()
-					return nil, err
+					return nil, err2
 				}
 			}
 			return c, err
