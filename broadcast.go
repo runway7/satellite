@@ -114,8 +114,8 @@ func (s *satellite) start() {
 }
 
 // NewSatelliteHandler creates a new handler that handles pub sub
-func NewSatelliteHandler(pool *redis.Pool, token string) func(w http.ResponseWriter, req *http.Request) {
+func NewSatelliteHandler(pool *redis.Pool, token string) http.Handler {
 	s := &satellite{channels: make(map[string]*strobe.Strobe), redisPool: pool, token: token}
 	go s.start()
-	return s.ServeHTTP
+	return s
 }

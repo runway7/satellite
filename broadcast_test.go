@@ -16,7 +16,7 @@ import (
 func makeTestServer() *httptest.Server {
 	testPool := newPool("localhost:6379", "")
 	token := "token"
-	return httptest.NewServer(http.HandlerFunc(NewSatelliteHandler(testPool, token)))
+	return httptest.NewServer(NewSatelliteHandler(testPool, token))
 }
 
 func runTestOnChannel(t *testing.T, channelURL string) chan bool {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 )
 
@@ -34,20 +33,13 @@ func main() {
 
 	broadcaster := NewSatelliteHandler(pool, token)
 
-	router := httprouter.New()
-	router.HandlerFunc("GET", "/:channel", broadcaster)
-	router.HandlerFunc("POST", "/:channel", broadcaster)
-
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
 		port = "3001"
 	}
 
-	handler := cors.Default().Handler(router)
-	err = http.ListenAndServe(":"+port, handler)
-	if err != nil {
-		log.Fatal(err)
-	}
+	handler := cors.Default().Handler(broadcaster)
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
 func newPool(host, password string) *redis.Pool {
