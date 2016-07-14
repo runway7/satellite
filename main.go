@@ -3,10 +3,13 @@ package main
 import (
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sqs"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/rs/cors"
@@ -15,34 +18,39 @@ import (
 func main() {
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
-		redisURLKey := os.Getenv("SATELLITE_REDIS_URL_KEY")
-		redisURL = os.Getenv(redisURLKey)
-	}
-	if redisURL == "" {
 		redisURL = "localhost:6379"
 	}
-	u, err := url.Parse(redisURL)
-	if err != nil {
-		panic(err)
-	}
-	redisHost := u.Host
-	redisPassword, _ := u.User.Password()
-	pool := newPool(redisHost, redisPassword)
 
-	token := os.Getenv("TOKEN")
+	pool := newPool(redisURL)
+	sqsClient := newSqsClient()
 
-	broadcaster := NewSatelliteHandler(pool, token)
+	queue := os.Getenv("SQS_QUEUE_URL")
 
-	port := strings.TrimSpace(os.Getenv("PORT"))
+	broadcaster := newSatelliteHandler(pool, sqsClient, queue)
+	go broadcaster.startRedisStrobe()
+	go broadcaster.startSqsReceive()
+
+	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3001"
+		port = "7288"
 	}
 
 	handler := cors.Default().Handler(broadcaster)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
-func newPool(host, password string) *redis.Pool {
+func newSqsClient() *sqs.SQS {
+	return sqs.New(session.New(&aws.Config{
+		Region: aws.String(os.Getenv("AWS_REGION")),
+		Credentials: credentials.NewStaticCredentials(
+			os.Getenv("AWS_ACCESS_KEY_ID"),
+			os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			"",
+		),
+	}))
+}
+
+func newPool(host string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     2,
 		MaxActive:   5,
@@ -53,13 +61,6 @@ func newPool(host, password string) *redis.Pool {
 			if err != nil {
 				log.Println(err)
 				return nil, err
-			}
-			if password != "" {
-				if _, err2 := c.Do("AUTH", password); err2 != nil {
-					log.Println(err2)
-					c.Close()
-					return nil, err2
-				}
 			}
 			return c, err
 		},
