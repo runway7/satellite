@@ -29,68 +29,67 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.channels[channelName] = channel
 	}
 	s.Unlock()
-	switch r.Method {
-	case "GET":
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	closer, ok := w.(http.CloseNotifier)
+	if !ok {
+		http.Error(w, "Closing unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	listener := channel.Listen()
+	defer listener.Close()
+
+	sse.Encode(w, sse.Event{
+		Id:    strconv.Itoa(int(time.Now().UnixNano())),
+		Event: "open",
+		Data:  "START",
+	})
+	flusher.Flush()
+	killSwitch := time.After(5 * time.Minute)
+
+	for {
+		select {
+		case m := <-listener.Receiver():
+			sse.Encode(w, sse.Event{
+				Id:    strconv.Itoa(int(time.Now().UnixNano())),
+				Event: "message",
+				Data:  m,
+			})
+			flusher.Flush()
+		case <-closer.CloseNotify():
 			return
-		}
-
-		closer, ok := w.(http.CloseNotifier)
-		if !ok {
-			http.Error(w, "Closing unsupported!", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		listener := channel.Listen()
-		defer listener.Close()
-
-		sse.Encode(w, sse.Event{
-			Id:    strconv.Itoa(int(time.Now().UnixNano())),
-			Event: "open",
-			Data:  "START",
-		})
-		flusher.Flush()
-		killSwitch := time.After(5 * time.Minute)
-		for {
-			select {
-			case m := <-listener.Receiver():
-				sse.Encode(w, sse.Event{
-					Id:    strconv.Itoa(int(time.Now().UnixNano())),
-					Event: "message",
-					Data:  m,
-				})
-				flusher.Flush()
-			case <-closer.CloseNotify():
-				return
-			case <-time.After(10 * time.Second):
-				sse.Encode(w, sse.Event{
-					Id:    strconv.Itoa(int(time.Now().UnixNano())),
-					Event: "heartbeat",
-					Data:  "PING",
-				})
-				flusher.Flush()
-			case <-killSwitch:
-				return
-			}
-		}
-	case "POST":
-		if r.FormValue("token") == s.token {
-			conn := s.redisPool.Get()
-			conn.Do("PUBLISH", channelName, r.FormValue("message"))
-			conn.Close()
-		} else {
-			http.Error(w, "Authentication Error", http.StatusUnauthorized)
+		case <-time.After(10 * time.Second):
+			sse.Encode(w, sse.Event{
+				Id:    strconv.Itoa(int(time.Now().UnixNano())),
+				Event: "heartbeat",
+				Data:  "PING",
+			})
+			flusher.Flush()
+		case <-killSwitch:
 			return
 		}
 	}
 }
 
+// case "POST":
+//   if r.FormValue("token") == s.token {
+//     conn := s.redisPool.Get()
+//     conn.Do("PUBLISH", channelName, r.FormValue("message"))
+//     conn.Close()
+//   } else {
+//     http.Error(w, "Authentication Error", http.StatusUnauthorized)
+//     return
+//   }
 func (s *satellite) start() {
 	r := s.redisPool.Get()
 	defer r.Close()
