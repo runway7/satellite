@@ -17,21 +17,22 @@ import (
 	"github.com/sudhirj/strobe"
 )
 
-type satellite struct {
-	channels map[string]*strobe.Strobe
+// Satellite is a broadcaster that provides a http.Handler
+type Satellite struct {
+	topics map[string]*strobe.Strobe
 	sync.RWMutex
 	redisPool *redis.Pool
 	queueURL  string
 	sqsClient *sqs.SQS
 }
 
-func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	channelName := strings.Trim(r.URL.Path, "/")
+func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	topicName := strings.Trim(r.URL.Path, "/")
 	s.Lock()
-	channel, ok := s.channels[channelName]
+	topic, ok := s.topics[topicName]
 	if !ok {
-		channel = strobe.NewStrobe()
-		s.channels[channelName] = channel
+		topic = strobe.NewStrobe()
+		s.topics[topicName] = topic
 	}
 	s.Unlock()
 
@@ -50,10 +51,11 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	listener := channel.Listen()
+	listener := topic.Listen()
 	defer listener.Close()
-	log.Println("Ah, a customer! on", channelName)
+	log.Println("Ah, a customer! on", topicName)
 	sse.Encode(w, sse.Event{
 		Id:    strconv.Itoa(int(time.Now().UnixNano())),
 		Event: "open",
@@ -72,17 +74,21 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Data:  m,
 			})
 			flusher.Flush()
+
 		case <-closer.CloseNotify():
 			log.Println("Closed, ah?")
 			return
-		case <-time.After(10 * time.Second):
+
+		case <-time.After(20 * time.Second):
 			log.Println("Sending a ping")
+			currentTime := strconv.Itoa(int(time.Now().UnixNano()))
 			sse.Encode(w, sse.Event{
-				Id:    strconv.Itoa(int(time.Now().UnixNano())),
+				Id:    currentTime,
 				Event: "heartbeat",
-				Data:  "PING",
+				Data:  currentTime,
 			})
 			flusher.Flush()
+
 		case <-killSwitch:
 			log.Println("DEAD, ah?")
 			return
@@ -90,7 +96,10 @@ func (s *satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *satellite) startRedisStrobe() {
+// StartRedisListener subscribes to Redis events and broadcasts them to
+// connected clients
+func (s *Satellite) StartRedisListener(pool *redis.Pool) {
+	s.redisPool = pool
 	r := s.redisPool.Get()
 	defer r.Close()
 	psc := redis.PubSubConn{Conn: r}
@@ -101,7 +110,7 @@ func (s *satellite) startRedisStrobe() {
 		case redis.PMessage:
 			log.Println("INGOMING!", n.Channel, string(n.Data))
 			s.RLock()
-			channel, ok := s.channels[n.Channel]
+			channel, ok := s.topics[n.Channel]
 			s.RUnlock()
 			if ok {
 				log.Println("Heading to ", channel.Count())
@@ -120,7 +129,10 @@ type snsMessage struct {
 	Data    string `json:"Message"`
 }
 
-func (s *satellite) startSqsReceive() {
+// StartSQSListener listens for SQS messages and publishes them to Redis
+func (s *Satellite) StartSQSListener(sqsClient *sqs.SQS, queueURL string) {
+	s.sqsClient = sqsClient
+	s.queueURL = queueURL
 	for {
 		log.Println("Opening receive...")
 		resp, err := s.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
@@ -150,13 +162,9 @@ func (s *satellite) startSqsReceive() {
 	}
 }
 
-// NewSatelliteHandler creates a new handler that handles pub sub
-func newSatelliteHandler(pool *redis.Pool, sqsClient *sqs.SQS, queueURL string) *satellite {
-	s := &satellite{
-		channels:  make(map[string]*strobe.Strobe),
-		redisPool: pool,
-		queueURL:  queueURL,
-		sqsClient: sqsClient,
+// NewSatellite creates a new satellite that handles pub sub. It provides a http.Handler
+func NewSatellite() *Satellite {
+	return &Satellite{
+		topics: make(map[string]*strobe.Strobe),
 	}
-	return s
 }

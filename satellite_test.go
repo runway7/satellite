@@ -13,8 +13,8 @@ import (
 )
 
 func makeTestServer(testPool *redis.Pool) *httptest.Server {
-	handler := newSatelliteHandler(testPool, newSqsClient(), "q1")
-	go handler.startRedisStrobe()
+	handler := NewSatellite(testPool, newSQSClient(), "q1")
+	go handler.StartRedisListener()
 	return httptest.NewServer(handler)
 }
 
@@ -62,7 +62,7 @@ func runTestOnChannel(t *testing.T, channelURL, channel string, testPool *redis.
 
 func TestSatellite(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	testPool := newPool("localhost:6379", "")
+	testPool := newPool("localhost:6379")
 	satelliteServer := makeTestServer(testPool)
 	baseURL := satelliteServer.URL
 	testCount := rand.Intn(10) + 1

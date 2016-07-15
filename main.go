@@ -21,25 +21,29 @@ func main() {
 		redisURL = "localhost:6379"
 	}
 
-	pool := newPool(redisURL)
-	sqsClient := newSqsClient()
+	redisPool := newPool(redisURL)
+	sqsClient := newSQSClient()
 
-	queue := os.Getenv("SQS_QUEUE_URL")
+	queueURL := os.Getenv("SQS_QUEUE_URL")
 
-	broadcaster := newSatelliteHandler(pool, sqsClient, queue)
-	go broadcaster.startRedisStrobe()
-	go broadcaster.startSqsReceive()
+	satellite := NewSatellite()
+	go satellite.StartRedisListener(redisPool)
+	go satellite.StartSQSListener(sqsClient, queueURL)
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "7288"
 	}
+	handler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET"},
+		AllowCredentials: true,
+	}).Handler(satellite)
 
-	handler := cors.Default().Handler(broadcaster)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
-func newSqsClient() *sqs.SQS {
+func newSQSClient() *sqs.SQS {
 	return sqs.New(session.New(&aws.Config{
 		Region: aws.String(os.Getenv("AWS_REGION")),
 		Credentials: credentials.NewStaticCredentials(
