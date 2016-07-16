@@ -144,7 +144,7 @@
 		},
 		{
 			"ImportPath": "github.com/sudhirj/strobe",
-			"Rev": "ca0d71050fa09cba680b2ad7a9bdca32c35a797a"
+			"Rev": "31923b155dbcfea202a4afbaaf47809bfcf6925f"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
