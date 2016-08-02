@@ -55,7 +55,6 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	listener := topic.Listen()
 	defer listener.Close()
-	log.Println("Ah, a customer! on", topicName)
 	sse.Encode(w, sse.Event{
 		Id:    strconv.Itoa(int(time.Now().UnixNano())),
 		Event: "open",
@@ -67,7 +66,6 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case m := <-listener.Receiver():
-			log.Println("DING!")
 			sse.Encode(w, sse.Event{
 				Id:    strconv.Itoa(int(time.Now().UnixNano())),
 				Event: "message",
@@ -76,11 +74,9 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 
 		case <-closer.CloseNotify():
-			log.Println("Closed, ah?")
 			return
 
 		case <-time.After(20 * time.Second):
-			log.Println("Sending a ping")
 			currentTime := strconv.Itoa(int(time.Now().UnixNano()))
 			sse.Encode(w, sse.Event{
 				Id:    currentTime,
@@ -90,9 +86,18 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 
 		case <-killSwitch:
-			log.Println("DEAD, ah?")
 			return
 		}
+	}
+}
+
+// Publish sends the given message to all subscribers of the given topic
+func (s *Satellite) Publish(topic, message string) {
+	s.RLock()
+	channel, ok := s.topics[topic]
+	s.RUnlock()
+	if ok {
+		channel.Pulse(message)
 	}
 }
 
@@ -108,15 +113,7 @@ func (s *Satellite) StartRedisListener(pool *redis.Pool) {
 	for {
 		switch n := psc.Receive().(type) {
 		case redis.PMessage:
-			log.Println("INGOMING!", n.Channel, string(n.Data))
-			s.RLock()
-			channel, ok := s.topics[n.Channel]
-			s.RUnlock()
-			if ok {
-				log.Println("Heading to ", channel.Count())
-				channel.Pulse(string(n.Data))
-			}
-			log.Println("Hmm.", channel, ok)
+			go s.Publish(n.Channel, string(n.Data))
 		case error:
 			log.Printf("error: %v\n", n)
 			return
