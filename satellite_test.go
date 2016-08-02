@@ -53,7 +53,7 @@ func runTestOnChannel(t *testing.T, channelURL, channel string, satellite *Satel
 
 func TestSatellite(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	satellite := NewSatellite()
+	satellite := NewSatellite("test-outbox", "test-bucket")
 	satelliteServer := httptest.NewServer(satellite)
 	baseURL := satelliteServer.URL
 	testCount := rand.Intn(10) + 1

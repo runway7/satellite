@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
 
 	"github.com/garyburd/redigo/redis"
@@ -21,14 +23,30 @@ func main() {
 		redisURL = "localhost:6379"
 	}
 
+	session := session.New(&aws.Config{
+		Region: aws.String(os.Getenv("AWS_REGION")),
+		Credentials: credentials.NewStaticCredentials(
+			os.Getenv("AWS_ACCESS_KEY_ID"),
+			os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			"",
+		),
+	})
+	outbox := os.Getenv("OUTBOX_ARN")
+	inbox := os.Getenv("INBOX_QUEUE_URL")
+	configBucket := "satellite-config-" + os.Getenv("AWS_REGION")
 	redisPool := newPool(redisURL)
-	sqsClient := newSQSClient()
+	sqsClient := sqs.New(session)
+	snsClient := sns.New(session)
+	s3Client := s3.New(session)
 
-	queueURL := os.Getenv("SQS_QUEUE_URL")
+	satellite := NewSatellite(outbox, configBucket)
+	satellite.SetRedisPool(redisPool)
+	satellite.SetSQSClient(sqsClient)
+	satellite.SetSNSClient(snsClient)
+	satellite.SetS3Client(s3Client)
 
-	satellite := NewSatellite()
-	go satellite.StartRedisListener(redisPool)
-	go satellite.StartSQSListener(sqsClient, queueURL)
+	go satellite.StartRedisListener()
+	go satellite.StartSQSListener(inbox)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -39,19 +57,9 @@ func main() {
 		AllowedMethods:   []string{"GET"},
 		AllowCredentials: true,
 	}).Handler(satellite)
+	log.Println("Starting on", port)
 
 	log.Fatal(http.ListenAndServe(":"+port, handler))
-}
-
-func newSQSClient() *sqs.SQS {
-	return sqs.New(session.New(&aws.Config{
-		Region: aws.String(os.Getenv("AWS_REGION")),
-		Credentials: credentials.NewStaticCredentials(
-			os.Getenv("AWS_ACCESS_KEY_ID"),
-			os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			"",
-		),
-	}))
 }
 
 func newPool(host string) *redis.Pool {
