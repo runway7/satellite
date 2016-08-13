@@ -24,7 +24,7 @@ import (
 
 // Satellite is a broadcaster that provides a http.Handler
 type Satellite struct {
-	topics map[string]*strobe.Strobe
+	topicStrobes map[string]*strobe.Strobe
 	sync.RWMutex
 	redisPool    *redis.Pool
 	sqsClient    *sqs.SQS
@@ -35,25 +35,28 @@ type Satellite struct {
 }
 
 func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.Trim(r.URL.Path, "/")
+	pathComponents := strings.Split(path, "/")
+	realmID := pathComponents[0]
+	topicID := strings.Join(pathComponents[1:], "/")
 	if r.Method == "GET" {
-		topicName := strings.Trim(r.URL.Path, "/")
 		s.Lock()
-		topic, ok := s.topics[topicName]
+		topicStrobe, ok := s.topicStrobes[path]
 		if !ok {
-			topic = strobe.NewStrobe()
-			s.topics[topicName] = topic
+			topicStrobe = strobe.NewStrobe()
+			s.topicStrobes[path] = topicStrobe
 		}
 		s.Unlock()
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			http.Error(w, "Streaming unsupported!", http.StatusExpectationFailed)
 			return
 		}
 
 		closer, ok := w.(http.CloseNotifier)
 		if !ok {
-			http.Error(w, "Closing unsupported!", http.StatusInternalServerError)
+			http.Error(w, "Closing unsupported!", http.StatusExpectationFailed)
 			return
 		}
 
@@ -62,15 +65,41 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		listener := topic.Listen()
+		listener := topicStrobe.Listen()
 		defer listener.Close()
+
+		sessionID := make([]byte, 16)
+		rand.Read(sessionID)
+
 		sse.Encode(w, sse.Event{
 			Id:    strconv.Itoa(int(time.Now().UnixNano())),
 			Event: "open",
 			Data:  "START",
 		})
 		flusher.Flush()
-		killSwitch := time.After(5 * time.Minute)
+		log.WithFields(log.Fields{
+			"event":   "sat.connection.start",
+			"id":      base64.StdEncoding.EncodeToString(sessionID) + "/start",
+			"session": base64.StdEncoding.EncodeToString(sessionID),
+			"realm":   realmID,
+			"topic":   topicID,
+			"ip":      r.RemoteAddr,
+			"table":   "connections",
+		}).Info()
+
+		defer func() {
+			log.WithFields(log.Fields{
+				"event":   "sat.connection.stop",
+				"id":      base64.StdEncoding.EncodeToString(sessionID) + "/stop",
+				"session": base64.StdEncoding.EncodeToString(sessionID),
+				"realm":   realmID,
+				"topic":   topicID,
+				"ip":      r.RemoteAddr,
+				"table":   "connections",
+			}).Info()
+		}()
+
+		killSwitch := time.After(10 * time.Minute)
 
 		for {
 			select {
@@ -85,7 +114,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			case <-closer.CloseNotify():
 				return
 
-			case <-time.After(20 * time.Second):
+			case <-time.After(60 * time.Second):
 				currentTime := strconv.Itoa(int(time.Now().UnixNano()))
 				sse.Encode(w, sse.Event{
 					Id:    currentTime,
@@ -93,7 +122,6 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Data:  currentTime,
 				})
 				flusher.Flush()
-
 			case <-killSwitch:
 				return
 			}
@@ -101,10 +129,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == "POST" {
-		path := strings.Trim(r.URL.Path, "/")
-		pathComponents := strings.Split(path, "/")
-		realm := pathComponents[0]
-		config, err := s.loadRealmConfig(realm)
+		config, err := s.loadRealmConfig(realmID)
 		if err != nil {
 			http.Error(w, "Realm not recognized", http.StatusNotFound)
 			return
@@ -133,9 +158,10 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		log.WithFields(log.Fields{
 			"event": "sat.publish",
-			"realm": realm,
-			"topic": strings.Join(pathComponents[1:], "/"),
+			"realm": realmID,
+			"topic": topicID,
 			"id":    *response.MessageId,
+			"table": "publishes",
 		}).Info()
 	}
 }
@@ -176,19 +202,20 @@ func (s *Satellite) loadRealmConfig(realm string) (realmConfig, error) {
 // Publish sends the given message to all subscribers of the given topic
 func (s *Satellite) Publish(topic, message string) {
 	s.RLock()
-	channel, ok := s.topics[topic]
+	channel, ok := s.topicStrobes[topic]
 	s.RUnlock()
 	if ok {
 		channel.Pulse(message)
 		topicParts := strings.Split(topic, "/")
-		idempotencyBytes := make([]byte, 16)
-		rand.Read(idempotencyBytes)
+		id := make([]byte, 16)
+		rand.Read(id)
 		log.WithFields(log.Fields{
 			"event": "sat.delivery",
 			"realm": topicParts[0],
 			"topic": strings.Join(topicParts[1:], "/"),
 			"count": channel.Count(),
-			"id":    base64.StdEncoding.EncodeToString(idempotencyBytes),
+			"table": "deliveries",
+			"id":    base64.StdEncoding.EncodeToString(id),
 		}).Info()
 	}
 }
@@ -270,7 +297,7 @@ func (s *Satellite) StartSQSListener(inbox string) {
 // NewSatellite creates a new satellite that handles pub sub. It provides a http.Handler
 func NewSatellite(outbox, configBucket string) *Satellite {
 	return &Satellite{
-		topics:       make(map[string]*strobe.Strobe),
+		topicStrobes: make(map[string]*strobe.Strobe),
 		outbox:       outbox,
 		configBucket: configBucket,
 	}
