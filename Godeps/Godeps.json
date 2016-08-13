@@ -1,8 +1,13 @@
 {
 	"ImportPath": "github.com/sudhirj/satellite",
-	"GoVersion": "go1.6",
+	"GoVersion": "go1.7",
 	"GodepVersion": "v74",
 	"Deps": [
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.10.0-28-ga283a10",
+			"Rev": "a283a10442df8dc09befd873fab202bf8a253d6a"
+		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/aws",
 			"Comment": "v1.2.10",
@@ -169,6 +174,10 @@
 		{
 			"ImportPath": "golang.org/x/net/context",
 			"Rev": "35b06af0720201bc2f326773a80767387544f8c4"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "a646d33e2ee3172a661fc09bca23bb4889a41bc8"
 		}
 	]
 }

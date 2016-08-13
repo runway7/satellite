@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -57,7 +58,11 @@ func main() {
 		AllowedMethods:   []string{"GET"},
 		AllowCredentials: true,
 	}).Handler(satellite)
-	log.Println("Starting on", port)
+
+	log.WithFields(log.Fields{
+		"event":  "sat.start",
+		"region": os.Getenv("AWS_REGION"),
+	}).Info()
 
 	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

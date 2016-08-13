@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -9,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"log"
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -119,7 +121,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer r.Body.Close()
 
-		_, err = s.snsClient.Publish(&sns.PublishInput{
+		response, err := s.snsClient.Publish(&sns.PublishInput{
 			Subject:  aws.String(path),
 			Message:  aws.String(string(message)),
 			TopicArn: aws.String(s.outbox),
@@ -129,8 +131,13 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.WithFields(log.Fields{
+			"event": "sat.publish",
+			"realm": realm,
+			"topic": strings.Join(pathComponents[1:], "/"),
+			"id":    *response.MessageId,
+		}).Info()
 	}
-
 }
 
 type realmConfig struct {
@@ -138,7 +145,6 @@ type realmConfig struct {
 }
 
 func (s *Satellite) loadRealmConfig(realm string) (realmConfig, error) {
-	log.Println("loading from ", s.configBucket)
 	configResponse, err := s.s3Client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(s.configBucket),
 		Key:    aws.String(realm),
@@ -174,6 +180,16 @@ func (s *Satellite) Publish(topic, message string) {
 	s.RUnlock()
 	if ok {
 		channel.Pulse(message)
+		topicParts := strings.Split(topic, "/")
+		idempotencyBytes := make([]byte, 16)
+		rand.Read(idempotencyBytes)
+		log.WithFields(log.Fields{
+			"event": "sat.delivery",
+			"realm": topicParts[0],
+			"topic": strings.Join(topicParts[1:], "/"),
+			"count": channel.Count(),
+			"id":    base64.StdEncoding.EncodeToString(idempotencyBytes),
+		}).Info()
 	}
 }
 
@@ -224,7 +240,7 @@ type snsMessage struct {
 // StartSQSListener listens for SQS messages and publishes them to Redis
 func (s *Satellite) StartSQSListener(inbox string) {
 	for {
-		log.Println("Opening receive...")
+		log.WithField("event", "sat.sqs.inbox.open").Info()
 		resp, err := s.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(inbox),
 			WaitTimeSeconds:     aws.Int64(20),
@@ -238,7 +254,6 @@ func (s *Satellite) StartSQSListener(inbox string) {
 			go func(msg *sqs.Message) {
 				msgStruct := snsMessage{}
 				json.Unmarshal([]byte(*msg.Body), &msgStruct)
-				log.Println(msgStruct)
 				conn := s.redisPool.Get()
 				conn.Do("PUBLISH", msgStruct.Channel, msgStruct.Data)
 				conn.Close()
@@ -248,7 +263,7 @@ func (s *Satellite) StartSQSListener(inbox string) {
 				})
 			}(message)
 		}
-		log.Println("Receive ended.")
+		log.WithField("event", "sat.sqs.inbox.close").Info()
 	}
 }
 
