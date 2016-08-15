@@ -79,7 +79,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 		log.WithFields(log.Fields{
 			"event":   "sat.connection.start",
-			"id":      base64.StdEncoding.EncodeToString(sessionID) + "/start",
+			"id":      base64.StdEncoding.EncodeToString(sessionID) + "/b",
 			"session": base64.StdEncoding.EncodeToString(sessionID),
 			"realm":   realmID,
 			"topic":   topicID,
@@ -90,7 +90,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			log.WithFields(log.Fields{
 				"event":   "sat.connection.stop",
-				"id":      base64.StdEncoding.EncodeToString(sessionID) + "/stop",
+				"id":      base64.StdEncoding.EncodeToString(sessionID) + "/e",
 				"session": base64.StdEncoding.EncodeToString(sessionID),
 				"realm":   realmID,
 				"topic":   topicID,
