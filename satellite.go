@@ -68,7 +68,7 @@ func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		listener := topicStrobe.Listen()
 		defer listener.Close()
 
-		sessionID := make([]byte, 16)
+		sessionID := make([]byte, 18)
 		rand.Read(sessionID)
 
 		sse.Encode(w, sse.Event{
@@ -207,7 +207,7 @@ func (s *Satellite) Publish(topic, message string) {
 	if ok {
 		channel.Pulse(message)
 		topicParts := strings.Split(topic, "/")
-		id := make([]byte, 16)
+		id := make([]byte, 18)
 		rand.Read(id)
 		log.WithFields(log.Fields{
 			"event": "sat.delivery",
