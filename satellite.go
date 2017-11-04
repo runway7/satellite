@@ -34,140 +34,162 @@ type Satellite struct {
 	configBucket string
 }
 
-func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.Trim(r.URL.Path, "/")
+type topic struct {
+	path           string
+	pathComponents []string
+	realmID        string
+	topicID        string
+}
+type realmConfig struct {
+	Password string `json:"password"`
+}
+
+func parseTopic(path string) topic {
+	path = strings.Trim(path, "/")
 	pathComponents := strings.Split(path, "/")
 	realmID := pathComponents[0]
 	topicID := strings.Join(pathComponents[1:], "/")
-	if r.Method == "GET" {
-		s.Lock()
-		topicStrobe, ok := s.topicStrobes[path]
-		if !ok {
-			topicStrobe = strobe.NewStrobe()
-			s.topicStrobes[path] = topicStrobe
-		}
-		s.Unlock()
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported!", http.StatusExpectationFailed)
-			return
-		}
-
-		closer, ok := w.(http.CloseNotifier)
-		if !ok {
-			http.Error(w, "Closing unsupported!", http.StatusExpectationFailed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		listener := topicStrobe.Listen()
-		defer listener.Close()
-
-		sessionID := make([]byte, 18)
-		rand.Read(sessionID)
-
-		sse.Encode(w, sse.Event{
-			Id:    strconv.Itoa(int(time.Now().UnixNano())),
-			Event: "open",
-			Data:  "START",
-		})
-		flusher.Flush()
-		log.WithFields(log.Fields{
-			"event":   "sat.connection.start",
-			"id":      base64.StdEncoding.EncodeToString(sessionID) + "/b",
-			"session": base64.StdEncoding.EncodeToString(sessionID),
-			"realm":   realmID,
-			"topic":   topicID,
-			"ip":      r.RemoteAddr,
-			"table":   "connections",
-		}).Info()
-
-		defer func() {
-			log.WithFields(log.Fields{
-				"event":   "sat.connection.stop",
-				"id":      base64.StdEncoding.EncodeToString(sessionID) + "/e",
-				"session": base64.StdEncoding.EncodeToString(sessionID),
-				"realm":   realmID,
-				"topic":   topicID,
-				"ip":      r.RemoteAddr,
-				"table":   "connections",
-			}).Info()
-		}()
-
-		killSwitch := time.After(10 * time.Minute)
-
-		for {
-			select {
-			case m := <-listener.Receiver():
-				sse.Encode(w, sse.Event{
-					Id:    strconv.Itoa(int(time.Now().UnixNano())),
-					Event: "message",
-					Data:  m,
-				})
-				flusher.Flush()
-
-			case <-closer.CloseNotify():
-				return
-
-			case <-time.After(60 * time.Second):
-				currentTime := strconv.Itoa(int(time.Now().UnixNano()))
-				sse.Encode(w, sse.Event{
-					Id:    currentTime,
-					Event: "heartbeat",
-					Data:  currentTime,
-				})
-				flusher.Flush()
-			case <-killSwitch:
-				return
-			}
-		}
-	}
-
-	if r.Method == "POST" {
-		config, err := s.loadRealmConfig(realmID)
-		if err != nil {
-			http.Error(w, "Realm not recognized", http.StatusNotFound)
-			return
-		}
-		if config.Password != r.FormValue("token") {
-			http.Error(w, "Wrong token", http.StatusForbidden)
-			return
-		}
-
-		message, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Could not read message", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
-
-		response, err := s.snsClient.Publish(&sns.PublishInput{
-			Subject:  aws.String(path),
-			Message:  aws.String(string(message)),
-			TopicArn: aws.String(s.outbox),
-		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		log.WithFields(log.Fields{
-			"event": "sat.publish",
-			"realm": realmID,
-			"topic": topicID,
-			"id":    *response.MessageId,
-			"table": "publishes",
-		}).Info()
+	return topic{
+		path:           path,
+		pathComponents: pathComponents,
+		realmID:        realmID,
+		topicID:        topicID,
 	}
 }
 
-type realmConfig struct {
-	Password string `json:"password"`
+func (s *Satellite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	descriptor := parseTopic(r.URL.Path)
+	if r.Method == "GET" {
+		s.listen(descriptor, w, r)
+	}
+
+	if r.Method == "POST" {
+		s.post(descriptor, w, r)
+	}
+}
+func (s *Satellite) post(descriptor topic, w http.ResponseWriter, r *http.Request) {
+	config, err := s.loadRealmConfig(descriptor.realmID)
+	if err != nil {
+		http.Error(w, "Realm not recognized", http.StatusNotFound)
+		return
+	}
+	if config.Password != r.FormValue("token") {
+		http.Error(w, "Wrong token", http.StatusForbidden)
+		return
+	}
+
+	message, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Could not read message", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	response, err := s.snsClient.Publish(&sns.PublishInput{
+		Subject:  aws.String(descriptor.path),
+		Message:  aws.String(string(message)),
+		TopicArn: aws.String(s.outbox),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"event": "sat.publish",
+		"realm": descriptor.realmID,
+		"topic": descriptor.topicID,
+		"id":    *response.MessageId,
+		"table": "publishes",
+	}).Info()
+}
+func (s *Satellite) listen(descriptor topic, w http.ResponseWriter, r *http.Request) {
+	s.Lock()
+	topicStrobe, ok := s.topicStrobes[descriptor.path]
+	if !ok {
+		topicStrobe = strobe.NewStrobe()
+		s.topicStrobes[descriptor.path] = topicStrobe
+	}
+	s.Unlock()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusExpectationFailed)
+		return
+	}
+
+	closer, ok := w.(http.CloseNotifier)
+	if !ok {
+		http.Error(w, "Closing unsupported!", http.StatusExpectationFailed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	listener := topicStrobe.Listen()
+	defer listener.Close()
+
+	sessionID := make([]byte, 18)
+	rand.Read(sessionID)
+
+	sse.Encode(w, sse.Event{
+		Id:    strconv.Itoa(int(time.Now().UnixNano())),
+		Event: "open",
+		Data:  "START",
+	})
+	flusher.Flush()
+	log.WithFields(log.Fields{
+		"event":   "sat.connection.start",
+		"id":      base64.StdEncoding.EncodeToString(sessionID) + "/b",
+		"session": base64.StdEncoding.EncodeToString(sessionID),
+		"realm":   descriptor.realmID,
+		"topic":   descriptor.topicID,
+		"ip":      r.RemoteAddr,
+		"table":   "connections",
+	}).Info()
+
+	defer func() {
+		log.WithFields(log.Fields{
+			"event":   "sat.connection.stop",
+			"id":      base64.StdEncoding.EncodeToString(sessionID) + "/e",
+			"session": base64.StdEncoding.EncodeToString(sessionID),
+			"realm":   descriptor.realmID,
+			"topic":   descriptor.topicID,
+			"ip":      r.RemoteAddr,
+			"table":   "connections",
+		}).Info()
+	}()
+
+	killSwitch := time.After(10 * time.Minute)
+
+	for {
+		select {
+		case m := <-listener.Receiver():
+			sse.Encode(w, sse.Event{
+				Id:    strconv.Itoa(int(time.Now().UnixNano())),
+				Event: "message",
+				Data:  m,
+			})
+			flusher.Flush()
+
+		case <-closer.CloseNotify():
+			return
+
+		case <-time.After(60 * time.Second):
+			currentTime := strconv.Itoa(int(time.Now().UnixNano()))
+			sse.Encode(w, sse.Event{
+				Id:    currentTime,
+				Event: "heartbeat",
+				Data:  currentTime,
+			})
+			flusher.Flush()
+		case <-killSwitch:
+			return
+		}
+	}
 }
 
 func (s *Satellite) loadRealmConfig(realm string) (realmConfig, error) {
