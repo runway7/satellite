@@ -50,12 +50,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/sudhirj/strobe"
-  packages = ["."]
-  revision = "77d6c1a3bfd513fbe8b8d1aaedfb4579f0e1394d"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "bd6f299fb381e4c3393d1c4b1f0b94f5e77650c8"
@@ -69,6 +63,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "26fd5107dfa0ebea601d13c615cd6de107ad3d43ddeca1d84832aa61449687ff"
+  inputs-digest = "716d1c19171a3e058c6b201a53b1bea5b91b76a7c13578dfaadc8282ffd9813a"
   solver-name = "gps-cdcl"
   solver-version = 1
