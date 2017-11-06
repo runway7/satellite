@@ -17,12 +17,15 @@ func (s *publication) Event() string { return s.event }
 func (s *publication) Data() string  { return s.data }
 func (s *publication) Retry() int64  { return s.retry }
 
-type decoder struct {
+// A Decoder is capable of reading Events from a stream.
+type Decoder struct {
 	*bufio.Reader
 }
 
-func newDecoder(r io.Reader) *decoder {
-	dec := &decoder{bufio.NewReader(newNormaliser(r))}
+// NewDecoder returns a new Decoder instance that reads events
+// with the given io.Reader.
+func NewDecoder(r io.Reader) *Decoder {
+	dec := &Decoder{bufio.NewReader(newNormaliser(r))}
 	return dec
 }
 
@@ -31,8 +34,7 @@ func newDecoder(r io.Reader) *decoder {
 // Graceful disconnects (between events) are indicated by an io.EOF error.
 // Any error occuring mid-event is considered non-graceful and will
 // show up as some other error (most likely io.ErrUnexpectedEOF).
-func (dec *decoder) Decode() (Event, error) {
-
+func (dec *Decoder) Decode() (Event, error) {
 	// peek ahead before we start a new event so we can return EOFs
 	_, err := dec.Peek(1)
 	if err == io.ErrUnexpectedEOF {
@@ -42,13 +44,18 @@ func (dec *decoder) Decode() (Event, error) {
 		return nil, err
 	}
 	pub := new(publication)
+	inDecoding := false
 	for {
 		line, err := dec.ReadString('\n')
 		if err != nil {
 			return nil, err
 		}
-		if line == "\n" {
+		if line == "\n" && inDecoding {
+			// the empty line signals the end of an event
 			break
+		} else if line == "\n" && !inDecoding {
+			// only a newline was sent, so we don't want to publish an empty event but try to read again
+			continue
 		}
 		line = strings.TrimSuffix(line, "\n")
 		if strings.HasPrefix(line, ":") {
@@ -59,6 +66,7 @@ func (dec *decoder) Decode() (Event, error) {
 		if len(sections) == 2 {
 			value = strings.TrimPrefix(sections[1], " ")
 		}
+		inDecoding = true
 		switch field {
 		case "event":
 			pub.event = value

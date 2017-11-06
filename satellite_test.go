@@ -14,7 +14,7 @@ import (
 func runTestOnChannel(t *testing.T, channelURL, channel string, satellite *Satellite) chan bool {
 	finished := make(chan bool)
 	waits := &sync.WaitGroup{}
-	subscriberCount := rand.Intn(20) + 1
+	subscriberCount := rand.Intn(200) + 1
 	subscriberWaits := &sync.WaitGroup{}
 	subscriberWaits.Add(subscriberCount)
 	message := strconv.Itoa(subscriberCount)
