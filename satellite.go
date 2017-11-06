@@ -19,13 +19,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/garyburd/redigo/redis"
 	"github.com/manucorporat/sse"
-	"github.com/sudhirj/strobe"
 )
 
 // Satellite is a broadcaster that provides a http.Handler
 type Satellite struct {
-	topicStrobes map[string]*strobe.Strobe
-	sync.RWMutex
+	antennas     map[string]*Antenna
+	antennaMutex sync.RWMutex
 	redisPool    *redis.Pool
 	sqsClient    *sqs.SQS
 	snsClient    *sns.SNS
@@ -104,15 +103,15 @@ func (s *Satellite) post(descriptor topic, w http.ResponseWriter, r *http.Reques
 	}).Info()
 }
 func (s *Satellite) listen(descriptor topic, w http.ResponseWriter, r *http.Request) {
-	s.Lock()
-	topicStrobe, ok := s.topicStrobes[descriptor.path]
+	s.antennaMutex.Lock()
+	antenna, ok := s.antennas[descriptor.path]
 	if !ok {
-		topicStrobe = strobe.NewStrobe()
-		s.topicStrobes[descriptor.path] = topicStrobe
+		antenna = NewAntenna()
+		s.antennas[descriptor.path] = antenna
 	}
-	s.Unlock()
+	s.antennaMutex.Unlock()
 
-	flusher, ok := w.(http.Flusher)
+	_, ok = w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported!", http.StatusExpectationFailed)
 		return
@@ -124,23 +123,11 @@ func (s *Satellite) listen(descriptor topic, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	listener := topicStrobe.Listen()
-	defer listener.Close()
 
 	sessionID := make([]byte, 18)
 	rand.Read(sessionID)
 
-	sse.Encode(w, sse.Event{
-		Id:    strconv.Itoa(int(time.Now().UnixNano())),
-		Event: "open",
-		Data:  "START",
-	})
-	flusher.Flush()
 	log.WithFields(log.Fields{
 		"event":   "sat.connection.start",
 		"id":      base64.StdEncoding.EncodeToString(sessionID) + "/b",
@@ -164,28 +151,19 @@ func (s *Satellite) listen(descriptor topic, w http.ResponseWriter, r *http.Requ
 	}()
 
 	killSwitch := time.After(10 * time.Minute)
-
+	beam := antenna.Add(w)
+	defer antenna.Remove(beam)
 	for {
 		select {
-		case m := <-listener.Receiver():
-			sse.Encode(w, sse.Event{
-				Id:    strconv.Itoa(int(time.Now().UnixNano())),
-				Event: "message",
-				Data:  m,
-			})
-			flusher.Flush()
-
 		case <-closer.CloseNotify():
 			return
 
-		case <-time.After(60 * time.Second):
+		case <-time.After(45 * time.Second):
 			currentTime := strconv.Itoa(int(time.Now().UnixNano()))
-			sse.Encode(w, sse.Event{
-				Id:    currentTime,
-				Event: "heartbeat",
+			beam.Pulse(sse.Event{
+				Event: "ping",
 				Data:  currentTime,
 			})
-			flusher.Flush()
 		case <-killSwitch:
 			return
 		}
@@ -223,19 +201,23 @@ func (s *Satellite) loadRealmConfig(realm string) (realmConfig, error) {
 
 // Publish sends the given message to all subscribers of the given topic
 func (s *Satellite) Publish(topic, message string) {
-	s.RLock()
-	channel, ok := s.topicStrobes[topic]
-	s.RUnlock()
+	s.antennaMutex.RLock()
+	antenna, ok := s.antennas[topic]
+	s.antennaMutex.RUnlock()
 	if ok {
-		channel.Pulse(message)
+		go antenna.Pulse(sse.Event{
+			Id:    strconv.Itoa(int(time.Now().UnixNano())),
+			Event: "message",
+			Data:  message,
+		})
 		topicParts := strings.Split(topic, "/")
 		id := make([]byte, 18)
 		rand.Read(id)
-		log.WithFields(log.Fields{
+		go log.WithFields(log.Fields{
 			"event": "sat.delivery",
 			"realm": topicParts[0],
 			"topic": strings.Join(topicParts[1:], "/"),
-			"count": channel.Count(),
+			"count": antenna.Size(),
 			"table": "deliveries",
 			"id":    base64.StdEncoding.EncodeToString(id),
 		}).Info()
@@ -319,7 +301,7 @@ func (s *Satellite) StartSQSListener(inbox string) {
 // NewSatellite creates a new satellite that handles pub sub. It provides a http.Handler
 func NewSatellite(outbox, configBucket string) *Satellite {
 	return &Satellite{
-		topicStrobes: make(map[string]*strobe.Strobe),
+		antennas:     make(map[string]*Antenna),
 		outbox:       outbox,
 		configBucket: configBucket,
 	}
