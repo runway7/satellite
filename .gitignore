@@ -1,3 +1,4 @@
 dump.rdb
 satellite
 *.env
+.idea
