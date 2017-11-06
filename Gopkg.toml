@@ -48,3 +48,6 @@
 [[constraint]]
   branch = "master"
   name = "github.com/sudhirj/strobe"
+
+[metadata.heroku]
+  root-package = "github.com/sudhirj/satellite"
