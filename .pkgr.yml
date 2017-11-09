@@ -1,1 +1,1 @@
-buildpack: https://github.com/sudhirj/heroku-buildpack-go
+buildpack: https://github.com/heroku/heroku-buildpack-go
