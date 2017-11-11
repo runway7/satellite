@@ -18,10 +18,13 @@ func runTestOnChannel(t *testing.T, channelURL, channel string, satellite *Satel
 	subscriberWaits := &sync.WaitGroup{}
 	subscriberWaits.Add(subscriberCount)
 	message := strconv.Itoa(subscriberCount)
+	subscribeLock := sync.Mutex{}
 	for i := 0; i < subscriberCount; i++ {
 		waits.Add(1)
 		go func() {
+			subscribeLock.Lock()
 			stream, err := eventsource.Subscribe(channelURL, "")
+			subscribeLock.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
