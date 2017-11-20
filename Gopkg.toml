@@ -48,3 +48,5 @@
 
 [metadata.heroku]
   root-package = "github.com/sudhirj/satellite"
+  ensure = "false"
+
