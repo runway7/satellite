@@ -1,3 +1,5 @@
 buildpack: https://github.com/heroku/heroku-buildpack-go
-before:
-  - sudo ln -s /usr/bin/sha1sum /usr/bin/shasum
+targets:
+  centos-6:
+    build_dependencies:
+      - perl-Digest-SHA
