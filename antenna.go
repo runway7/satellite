@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/manucorporat/sse"
 	"net/http"
 	"sync"
-	"github.com/manucorporat/sse"
 )
 
 type Beam struct {
@@ -27,8 +27,7 @@ func NewAntenna() *Antenna {
 func (a *Antenna) Pulse(event sse.Event) {
 	a.RLock()
 	for beam := range a.beams {
-		sse.Encode(beam, event)
-		beam.ResponseWriter.(http.Flusher).Flush()
+		beam.Pulse(event)
 	}
 	a.RUnlock()
 }
