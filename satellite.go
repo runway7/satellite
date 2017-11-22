@@ -15,9 +15,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sns"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/garyburd/redigo/redis"
 	"github.com/manucorporat/sse"
 )
 
@@ -25,10 +24,9 @@ import (
 type Satellite struct {
 	antennas     map[string]*Antenna
 	antennaMutex sync.RWMutex
-	redisPool    *redis.Pool
 	sqsClient    *sqs.SQS
-	snsClient    *sns.SNS
 	s3Client     *s3.S3
+	s3Manager    *s3manageriface.UploaderAPI
 	outbox       string
 	configBucket string
 }
@@ -76,7 +74,7 @@ func (s *Satellite) post(descriptor topic, w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Wrong token", http.StatusForbidden)
 		return
 	}
-
+	s.s3Client.upload
 	message, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Could not read message", http.StatusBadRequest)
@@ -84,23 +82,6 @@ func (s *Satellite) post(descriptor topic, w http.ResponseWriter, r *http.Reques
 	}
 	defer r.Body.Close()
 
-	response, err := s.snsClient.Publish(&sns.PublishInput{
-		Subject:  aws.String(descriptor.path),
-		Message:  aws.String(string(message)),
-		TopicArn: aws.String(s.outbox),
-	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"event": "sat.publish",
-		"realm": descriptor.realmID,
-		"topic": descriptor.topicID,
-		"id":    *response.MessageId,
-		"table": "publishes",
-	}).Info()
 }
 func (s *Satellite) listen(descriptor topic, w http.ResponseWriter, r *http.Request) {
 	s.antennaMutex.Lock()
@@ -224,11 +205,6 @@ func (s *Satellite) Publish(topic, message string) {
 	}
 }
 
-// SetRedisPool sets the redis pool
-func (s *Satellite) SetRedisPool(pool *redis.Pool) {
-	s.redisPool = pool
-}
-
 // SetSQSClient sets the SQS client for use as the listener
 func (s *Satellite) SetSQSClient(client *sqs.SQS) {
 	s.sqsClient = client
@@ -237,30 +213,6 @@ func (s *Satellite) SetSQSClient(client *sqs.SQS) {
 // SetS3Client sets the S3 client for use as the listener
 func (s *Satellite) SetS3Client(client *s3.S3) {
 	s.s3Client = client
-}
-
-// SetSNSClient sets the SNS client for use as the listener
-func (s *Satellite) SetSNSClient(client *sns.SNS) {
-	s.snsClient = client
-}
-
-// StartRedisListener subscribes to Redis events and broadcasts them to
-// connected clients
-func (s *Satellite) StartRedisListener() {
-	r := s.redisPool.Get()
-	defer r.Close()
-	psc := redis.PubSubConn{Conn: r}
-	psc.PSubscribe("*")
-	defer psc.Close()
-	for {
-		switch n := psc.Receive().(type) {
-		case redis.PMessage:
-			go s.Publish(n.Channel, string(n.Data))
-		case error:
-			log.Printf("error: %v\n", n)
-			return
-		}
-	}
 }
 
 type snsMessage struct {
@@ -285,9 +237,6 @@ func (s *Satellite) StartSQSListener(inbox string) {
 			go func(msg *sqs.Message) {
 				msgStruct := snsMessage{}
 				json.Unmarshal([]byte(*msg.Body), &msgStruct)
-				conn := s.redisPool.Get()
-				conn.Do("PUBLISH", msgStruct.Channel, msgStruct.Data)
-				conn.Close()
 				s.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
 					QueueUrl:      aws.String(inbox),
 					ReceiptHandle: msg.ReceiptHandle,
