@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -58,15 +59,16 @@ func runTestOnChannel(t *testing.T, channelURL, channel string, satellite *Satel
 
 func TestSatellite(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	satellite := NewSatellite("test-outbox", "test-bucket")
-	satelliteServer := httptest.NewServer(satellite)
+	satellite := NewSatellite(SatelliteConfig{})
+	satelliteServer := httptest.NewServer(NewSatelliteRouter(satellite))
 	baseURL := satelliteServer.URL
 	testCount := rand.Intn(10) + 1
 	testWaits := &sync.WaitGroup{}
 	testWaits.Add(testCount)
 	for i := 0; i < testCount; i++ {
-		testURL := baseURL + "/" + strconv.Itoa(i)
-		finished := runTestOnChannel(t, testURL, strconv.Itoa(i), satellite)
+		channel := strings.Join([]string{strconv.Itoa(i), strconv.Itoa(i * 2)}, "/")
+		testURL := strings.Join([]string{baseURL, channel}, "/")
+		finished := runTestOnChannel(t, testURL, channel, satellite)
 		go func(f chan bool, w *sync.WaitGroup) {
 			<-f
 			w.Done()

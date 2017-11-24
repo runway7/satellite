@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/subtle"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -47,35 +46,21 @@ type Authorizer struct {
 	configBucket string
 }
 
-func (s *Authorizer) load(realm string) (config Config, err error) {
+func (s *Authorizer) load(satelliteID string) (config Config, err error) {
 	configResponse, err := s.s3Client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(s.configBucket),
-		Key:    aws.String(realm),
+		Key:    aws.String(satelliteID),
 	})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	configBytes, err := ioutil.ReadAll(configResponse.Body)
-	defer configResponse.Body.Close()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	err = json.Unmarshal(configBytes, &config)
-	if err != nil {
-		log.Println(err)
-		return
+	if err == nil {
+		err = json.NewDecoder(configResponse.Body).Decode(&config)
 	}
 	return
 }
 
 func (s *Satellite) Post(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	config, err := s.config.authorizer.load(params.ByName("realm"))
+	config, err := s.config.authorizer.load(params.ByName("satellite"))
 	if err != nil {
-		http.Error(w, "Realm not recognized", http.StatusNotFound)
+		http.Error(w, "Satellite ID not recognized", http.StatusNotFound)
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(config.Password), []byte(params.ByName("token"))) == 1 {
@@ -89,7 +74,7 @@ func (s *Satellite) Post(w http.ResponseWriter, r *http.Request, params httprout
 	s.config.s3Uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s.config.eventBucket),
 		Key: aws.String(strings.Join([]string{
-			params.ByName("realm"),
+			params.ByName("satellite"),
 			params.ByName("topic"),
 			eventID,
 		}, "/")),
@@ -102,14 +87,18 @@ func (s *Satellite) Post(w http.ResponseWriter, r *http.Request, params httprout
 }
 
 func (s *Satellite) Listen(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	path := strings.Join([]string{params.ByName("realm"), params.ByName("topic")}, "/")
-	s.antennaMutex.Lock()
+	path := strings.Join([]string{params.ByName("satellite"), params.ByName("topic")}, "/")
+
+	s.antennaMutex.RLock()
 	antenna, ok := s.antennas[path]
+	s.antennaMutex.RUnlock()
+
 	if !ok {
+		s.antennaMutex.Lock()
 		antenna = NewAntenna()
 		s.antennas[path] = antenna
+		s.antennaMutex.Unlock()
 	}
-	s.antennaMutex.Unlock()
 
 	_, ok = w.(http.Flusher)
 	if !ok {
@@ -132,7 +121,7 @@ func (s *Satellite) Listen(w http.ResponseWriter, r *http.Request, params httpro
 			return
 		case <-time.After(45 * time.Second):
 			beam.Pulse(sse.Event{
-				Event: "ping",
+				Event: "PING",
 			})
 		case <-killSwitch:
 			return

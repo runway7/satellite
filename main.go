@@ -39,12 +39,8 @@ func main() {
 	})
 
 	//go satellite.StartSQSListener(inbox)
-	router := httprouter.New()
-	router.GET("/", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 
-	})
-	router.GET("/:realm/:topic", satellite.Listen)
-	router.POST("/:realm/:topic", satellite.Post)
+	router := NewSatelliteRouter(satellite)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -59,4 +55,13 @@ func main() {
 	n.UseHandler(router)
 	n.Use(corsMiddleware)
 	log.Fatal(http.ListenAndServe(":"+port, n))
+}
+func NewSatelliteRouter(satellite *Satellite) *httprouter.Router {
+	router := httprouter.New()
+	router.GET("/", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+
+	})
+	router.GET("/:satellite/:topic", satellite.Listen)
+	router.POST("/:satellite/:topic", satellite.Post)
+	return router
 }
