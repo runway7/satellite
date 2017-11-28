@@ -115,6 +115,9 @@ func (s *Satellite) Listen(w http.ResponseWriter, r *http.Request, params httpro
 	killSwitch := time.After(10 * time.Minute)
 	beam := antenna.Add(w)
 	defer antenna.Remove(beam)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 	for {
 		select {
 		case <-closer.CloseNotify():

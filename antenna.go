@@ -1,18 +1,23 @@
 package main
 
 import (
-	"github.com/manucorporat/sse"
+	"io"
 	"net/http"
 	"sync"
+
+	"github.com/manucorporat/sse"
 )
 
 type Beam struct {
-	http.ResponseWriter
+	io.Writer
 }
 
 func (b *Beam) Pulse(event sse.Event) {
 	sse.Encode(b, event)
-	b.ResponseWriter.(http.Flusher).Flush()
+	flusher, ok := b.Writer.(http.Flusher)
+	if ok {
+		flusher.Flush()
+	}
 }
 
 type Antenna struct {
@@ -34,9 +39,6 @@ func (a *Antenna) Pulse(event sse.Event) {
 
 func (a *Antenna) Add(rw http.ResponseWriter) Beam {
 	beam := Beam{rw}
-	beam.Header().Set("Content-Type", "text/event-stream")
-	beam.Header().Set("Cache-Control", "no-cache")
-	beam.Header().Set("Connection", "keep-alive")
 	beam.Pulse(sse.Event{
 		Event: "open",
 		Data:  "START",
